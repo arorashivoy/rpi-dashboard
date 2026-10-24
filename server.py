@@ -154,7 +154,7 @@ class Dashboard:
         if mode in {"random", "named"}:
             if not target:
                 raise ValueError("Set a port or share.target before starting a share")
-            command = share.get("command") or ["zrok", "share", "public", "--headless", target]
+            command = share.get("command") or ["zrok2", "share", "public", "--headless", target]
             if mode == "named":
                 name = share.get("name", "")
                 if not re.fullmatch(r"[a-zA-Z0-9_-]+", name):
@@ -164,7 +164,7 @@ class Dashboard:
             token = share.get("token")
             if not token:
                 raise ValueError("Set share.token to the reserved zrok token")
-            command = share.get("command") or ["zrok", "share", "reserved", "--headless", token]
+            command = share.get("command") or ["zrok2", "share", "reserved", "--headless", token]
         else:
             raise ValueError("share.mode must be 'random', 'named', or 'reserved'")
         basic_auth = share.get("basic_auth")
@@ -230,7 +230,7 @@ class Dashboard:
         return_code = process.wait()
         with self.lock:
             if return_code and self.share_processes.get(app_id) is process:
-                message = "\n".join(lines).strip() or f"zrok exited with status {return_code}"
+                message = "\n".join(lines).strip() or f"zrok2 exited with status {return_code}"
                 self.errors[app_id] = message[-1200:]
                 self.share_urls.pop(app_id, None)
 
