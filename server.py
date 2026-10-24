@@ -40,10 +40,7 @@ class Dashboard:
             error = self.errors.get(app_id)
 
         if kind == "systemd":
-            running = all(
-                self._check_command(self._systemctl_command(app, "is-active", "--quiet", unit=unit))
-                for unit in self._systemd_units(app)
-            )
+            running = self._check_command(self._systemctl_command(app, "is-active", "--quiet"))
         elif kind == "docker":
             running = self._check_command(
                 ["docker", "inspect", "--format", "{{.State.Running}}", app["container"]],
@@ -271,16 +268,11 @@ class Dashboard:
             return False
 
     @staticmethod
-    def _systemctl_command(app, *arguments, unit=None):
+    def _systemctl_command(app, *arguments):
         command = ["systemctl"]
         if app.get("scope", "system") == "user":
             command.append("--user")
-        units = [unit] if unit else Dashboard._systemd_units(app)
-        return [*command, *arguments, *units]
-
-    @staticmethod
-    def _systemd_units(app):
-        return app.get("units") or [app["unit"]]
+        return [*command, *arguments, app["unit"]]
 
 
 def load_config():
@@ -297,14 +289,8 @@ def load_config():
         if kind == "command" and not app.get("start"):
             app["disabled"] = True
         elif kind == "systemd":
-            units = app.get("units")
-            if units is not None:
-                if not isinstance(units, list) or not units or any(not isinstance(unit, str) or not unit for unit in units):
-                    raise ValueError(f"Application {app_id!r} needs a non-empty list of systemd units")
-                if app.get("unit"):
-                    raise ValueError(f"Application {app_id!r} cannot set both 'unit' and 'units'")
-            elif not app.get("unit"):
-                raise ValueError(f"Application {app_id!r} needs a systemd unit or units list")
+            if not app.get("unit"):
+                raise ValueError(f"Application {app_id!r} needs a systemd unit")
             if app.get("scope", "system") not in {"system", "user"}:
                 raise ValueError(f"Application {app_id!r} systemd scope must be 'system' or 'user'")
         elif kind == "docker" and not app.get("container"):

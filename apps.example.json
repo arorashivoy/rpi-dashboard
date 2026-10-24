@@ -1,63 +1,78 @@
 {
-  "apps": [
-    {
-      "id": "two-rooms",
-      "name": "Two Rooms and a Boom",
-      "description": "Game server",
-      "kind": "command",
-      "working_dir": "/home/pi/apps/two-rooms-and-a-boom",
-      "start": [],
-      "stop": { "signal": "SIGINT" },
-      "port": 3000,
-      "autostart": true,
-      "share": {
-        "mode": "random",
-        "basic_auth": { "username": "replace-me", "password": "replace-me" },
-        "autostart": true
-      }
-    },
-    {
-      "id": "block-logic-puzzle",
-      "name": "Block Logic Puzzle",
-      "description": "Puzzle application",
-      "kind": "command",
-      "working_dir": "/home/pi/apps/block-logic-puzzle",
-      "start": [],
-      "stop": { "signal": "SIGINT" },
-      "port": 3001,
-      "autostart": true,
-      "share": {
-        "mode": "random",
-        "basic_auth": { "username": "replace-me", "password": "replace-me" },
-        "autostart": true
-      }
-    },
-    {
-      "id": "pihole",
-      "name": "Pi-hole",
-      "description": "DNS and network filtering",
-      "kind": "docker",
-      "container": "pihole",
-      "port": 80,
-      "url": "http://127.0.0.1/admin/",
-      "autostart": true
-    },
-    {
-      "id": "waypoint",
-      "name": "Waypoint",
-      "description": "Job search workspace",
-      "kind": "command",
-      "working_dir": "/home/pi/apps/waypoint",
-      "start": [],
-      "stop": { "signal": "SIGINT" },
-      "port": 3002,
-      "autostart": true,
-      "share": {
-        "mode": "named",
-        "name": "waypoint",
-        "basic_auth": { "username": "replace-me", "password": "replace-me" },
-        "autostart": true
-      }
-    }
-  ]
+    "apps": [
+        {
+            "id": "two-rooms",
+            "name": "Two Rooms and a Boom",
+            "description": "Game server",
+            "kind": "command",
+            "working_dir": "/home/pi/apps/two-rooms-and-a-boom",
+            "start": [],
+            "stop": {
+                "signal": "SIGINT"
+            },
+            "port": 3000,
+            "autostart": true,
+            "share": {
+                "mode": "random",
+                "basic_auth": {
+                    "username": "replace-me",
+                    "password": "replace-me"
+                },
+                "autostart": true
+            }
+        },
+        {
+            "id": "block-logic-puzzle",
+            "name": "Block Logic Puzzle",
+            "description": "Puzzle application",
+            "kind": "command",
+            "working_dir": "/home/pi/apps/block-logic-puzzle",
+            "start": [],
+            "stop": {
+                "signal": "SIGINT"
+            },
+            "port": 3001,
+            "autostart": true,
+            "share": {
+                "mode": "random",
+                "basic_auth": {
+                    "username": "replace-me",
+                    "password": "replace-me"
+                },
+                "autostart": true
+            }
+        },
+        {
+            "id": "pihole",
+            "name": "Pi-hole",
+            "description": "DNS and network filtering",
+            "kind": "docker",
+            "container": "pihole",
+            "port": 80,
+            "url": "http://127.0.0.1/admin/",
+            "autostart": true
+        },
+        {
+            "id": "waypoint",
+            "name": "Waypoint",
+            "description": "Job search workspace",
+            "kind": "command",
+            "working_dir": "/home/pi/apps/waypoint",
+            "start": [],
+            "stop": {
+                "signal": "SIGINT"
+            },
+            "port": 3002,
+            "autostart": true,
+            "share": {
+                "mode": "named",
+                "name": "waypoint",
+                "basic_auth": {
+                    "username": "replace-me",
+                    "password": "replace-me"
+                },
+                "autostart": true
+            }
+        }
+    ]
 }

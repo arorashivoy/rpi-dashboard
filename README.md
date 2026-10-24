@@ -134,32 +134,33 @@ systemctl --user status rpi-dashboard.service
 
 The dashboard starts configured apps and their auto-start zrok shares. It skips disabled apps and does not start a share if its app fails to start. The dashboard and zrok processes run as the same user. For Docker control, give that user access to Docker; Docker group membership grants broad control over the host.
 
-For related user services, configure one app entry with a `units` list. The dashboard starts and stops the listed units together. It reports the group as running only when every unit is active:
+For existing user services, configure one app entry per unit. This example tracks an app managed by `systemctl --user`:
 
 ```json
 {
-  "id": "waypoint",
-  "name": "Waypoint",
+  "id": "waypoint-web",
+  "name": "Waypoint Web",
   "kind": "systemd",
   "scope": "user",
-  "units": [
-    "waypoint-web.service",
-    "waypoint-worker.service",
-    "waypoint-tunnel.service"
-  ],
+  "unit": "waypoint-web.service",
   "port": 3002,
-  "autostart": true
+  "autostart": true,
+  "share": {
+    "mode": "named",
+    "name": "waypoint",
+    "basic_auth": { "username": "replace-me", "password": "replace-me" },
+    "autostart": true
+  }
 }
 ```
 
-Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit `scope` for system services. Use `unit` instead of `units` when an app manages only one unit.
+Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit `scope` for system services. Configure additional units, such as workers or tunnels, as separate app entries.
 
 ## Configuration reference
 
 - `id`: unique letters, numbers, `_`, or `-`.
 - `kind`: `command` (default), `systemd`, or `docker`.
 - `scope`: `system` (default) or `user` for systemd-managed apps.
-- `unit` or `units`: one systemd unit name or a list of units managed as a group.
 - `autostart`: start this app when the dashboard service starts.
 - `start`: executable and arguments for a command app.
 - `stop.signal`: process signal for a command app; defaults to `SIGINT`.
