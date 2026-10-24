@@ -2,6 +2,9 @@ const serviceList = document.querySelector("#service-list");
 const toast = document.querySelector("#toast");
 let apps = [];
 let toastTimer;
+let lastRenderedApps = "";
+let refreshInFlight = false;
+const refreshButton = document.querySelector("#refresh");
 
 const icons = {
     launch: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
@@ -66,6 +69,9 @@ function render() {
 }
 
 async function refresh(reloadConfig = false) {
+    if (refreshInFlight) return;
+    refreshInFlight = true;
+    refreshButton.disabled = true;
     try {
         const response = await fetch(reloadConfig ? "/api/reload" : "/api/apps", {
             cache: "no-store",
@@ -73,12 +79,22 @@ async function refresh(reloadConfig = false) {
         });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || `Dashboard returned ${response.status}`);
-        ({ apps } = body);
-        render();
+        const nextApps = body.apps || [];
+        const nextSnapshot = JSON.stringify(nextApps);
+        apps = nextApps;
+        if (nextSnapshot !== lastRenderedApps) {
+            lastRenderedApps = nextSnapshot;
+            render();
+        } else {
+            document.querySelector("#updated-at").textContent = `UPDATED ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+        }
         if (reloadConfig) showToast("apps.json reloaded.");
     } catch (error) {
         document.querySelector("#updated-at").textContent = "CONNECTION LOST";
         showToast(error.message);
+    } finally {
+        refreshInFlight = false;
+        refreshButton.disabled = false;
     }
 }
 
@@ -101,13 +117,16 @@ serviceList.addEventListener("click", async (event) => {
         if (!response.ok) throw new Error(body.error || "Action failed");
         const messages = { start: "Service started.", stop: "Service stopped.", share: "Share started. Waiting for the public link…", unshare: "Share stopped." };
         showToast(messages[action]);
-        await refresh();
+        apps = apps.map((app) => app.id === id ? body.app : app);
+        lastRenderedApps = JSON.stringify(apps);
+        render();
     } catch (error) {
         showToast(error.message);
-        await refresh();
+    } finally {
+        button.disabled = false;
+        button.classList.remove("busy");
     }
 });
 
-document.querySelector("#refresh").addEventListener("click", () => refresh(true));
+refreshButton.addEventListener("click", () => refresh(true));
 refresh();
-setInterval(refresh, 5000);

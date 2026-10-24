@@ -33,22 +33,23 @@ class Dashboard:
         self.errors = {}
         self.service_status = {}
         self.lock = threading.RLock()
-        self.zrok_share_hosts = set()
+        self.zrok_share_urls_by_port = {}
         self.zrok_status_error = None
 
     def app_status(self, app):
         app_id = app["id"]
         kind = app.get("kind", "command")
         share_config = app.get("share") or {}
-        external_share_url = share_config.get("external_url")
         with self.lock:
             process = self.processes.get(app_id)
             share_process = self.share_processes.get(app_id)
             running_process = process is not None and process.poll() is None
-            sharing = share_process is not None and share_process.poll() is None
+            share_process_running = share_process is not None and share_process.poll() is None
             share_url = self.share_urls.get(app_id)
             cached_service_status = self.service_status.get(app_id, False)
             error = self.errors.get(app_id)
+            share_urls_by_port = self.zrok_share_urls_by_port
+            zrok_status_error = self.zrok_status_error
 
         if kind == "systemd":
             running = cached_service_status
@@ -57,14 +58,18 @@ class Dashboard:
         else:
             running = running_process
 
-        if external_share_url:
-            external_host = self._url_host(external_share_url)
-            with self.lock:
-                sharing = bool(external_host and external_host in self.zrok_share_hosts)
-                share_error = self.zrok_status_error
-            share_url = external_share_url if sharing else None
-            if share_error:
-                error = error or share_error
+        active_share_url = None
+        service_port = app.get("port")
+        if service_port:
+            endpoints = share_urls_by_port.get(int(service_port), [])
+            if endpoints:
+                active_share_url = endpoints[0]
+
+        sharing = share_process_running or active_share_url is not None
+        share_url = share_url or active_share_url
+        if zrok_status_error:
+            error = error or zrok_status_error
+        share_managed = bool(share_config) and (share_process_running or active_share_url is None)
 
         port = app.get("port")
         local_url = app.get("url") or (f"http://127.0.0.1:{port}" if port else None)
@@ -82,7 +87,7 @@ class Dashboard:
             "sharing": sharing,
             "share_url": share_url,
             "share_mode": share_config.get("mode"),
-            "share_managed": bool(share_config) and not bool(external_share_url),
+            "share_managed": share_managed,
             "disabled": bool(app.get("disabled") or (kind == "command" and not app.get("start"))),
             "error": error,
         }
@@ -113,7 +118,7 @@ class Dashboard:
         for app in apps:
             if app.get("kind", "command") in {"systemd", "docker"}:
                 self._refresh_service_status(app)
-        self._refresh_zrok_share_hosts(apps)
+        self._refresh_zrok_share_status()
 
     def _refresh_service_status(self, app):
         kind = app.get("kind", "command")
@@ -132,48 +137,63 @@ class Dashboard:
         with self.lock:
             self.service_status[app["id"]] = bool(running)
 
-    def _refresh_zrok_share_hosts(self, apps):
-        if not any((app.get("share") or {}).get("external_url") for app in apps):
-            with self.lock:
-                self.zrok_share_hosts = set()
-                self.zrok_status_error = None
-            return
-
+    def _refresh_zrok_share_status(self):
         try:
             result = subprocess.run(
-                ["zrok2", "list", "shares", "--json"],
+                ["zrok2", "list", "share", "--json"],
                 text=True,
                 capture_output=True,
                 check=False,
                 timeout=8,
             )
             if result.returncode:
-                raise RuntimeError("zrok2 list shares returned a non-zero exit status")
+                raise RuntimeError("zrok2 list share returned a non-zero exit status")
             payload = json.loads(result.stdout)
-            shares = payload.get("shares") if isinstance(payload, dict) else None
+            shares = payload.get("shares", payload.get("share")) if isinstance(payload, dict) else payload
+            if isinstance(shares, dict):
+                shares = [shares]
             if not isinstance(shares, list):
-                raise ValueError("zrok2 list shares returned an unexpected JSON format")
-            hosts = {
-                host
-                for share in shares
-                if isinstance(share, dict)
-                for endpoint in share.get("frontendEndpoints", [])
-                if isinstance(endpoint, str)
-                if (host := self._url_host(endpoint))
-            }
+                raise ValueError("zrok2 list share returned an unexpected JSON format")
+            urls_by_port = {}
+            for share in shares:
+                if not isinstance(share, dict) or share.get("shareMode") != "public":
+                    continue
+                target_port = self._url_port(share.get("target"))
+                endpoints = [
+                    self._share_endpoint_url(endpoint)
+                    for endpoint in share.get("frontendEndpoints", [])
+                    if isinstance(endpoint, str)
+                ]
+                endpoints = [endpoint for endpoint in endpoints if endpoint]
+                if target_port and endpoints:
+                    urls_by_port.setdefault(target_port, []).extend(endpoints)
             error = None
         except (OSError, subprocess.SubprocessError, RuntimeError, ValueError):
-            hosts = set()
-            error = "Could not verify zrok2 share status; check `zrok2 list shares --json`."
+            urls_by_port = {}
+            error = "Could not verify zrok2 share status; check `zrok2 list share --json`."
 
         with self.lock:
-            self.zrok_share_hosts = hosts
+            self.zrok_share_urls_by_port = urls_by_port
             self.zrok_status_error = error
 
     @staticmethod
-    def _url_host(url):
-        parsed = urlparse(url if "://" in url else f"https://{url}")
-        return parsed.hostname.lower() if parsed.scheme in {"http", "https"} and parsed.hostname else None
+    def _url_port(url):
+        if not isinstance(url, str) or not url:
+            return None
+        parsed = urlparse(url if "://" in url else f"//{url}")
+        try:
+            return parsed.port
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _share_endpoint_url(endpoint):
+        parsed = urlparse(endpoint)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return endpoint
+        if not parsed.scheme and parsed.path:
+            return f"https://{endpoint}"
+        return None
 
     def start_app(self, app_id):
         app = self._get_app(app_id)
@@ -268,6 +288,10 @@ class Dashboard:
             existing = self.share_processes.get(app_id)
             if existing and existing.poll() is None:
                 return self.app_status(app)
+
+        self._refresh_zrok_share_status()
+        if self.app_status(app)["sharing"]:
+            return self.app_status(app)
 
         mode = share.get("mode", "random")
         target = share.get("target") or (f"localhost:{app['port']}" if app.get("port") else None)
@@ -444,6 +468,7 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/apps":
+            self.dashboard.refresh_status()
             self._json(200, {"apps": self.dashboard.list_apps()})
         elif self.path == "/api/health":
             self._json(200, {"ok": True})
@@ -509,8 +534,6 @@ def main():
                 dashboard.start_share(app["id"])
             except (RuntimeError, ValueError) as exc:
                 print(f"Could not start {app['id']} share: {exc}")
-
-    dashboard.refresh_status()
 
     host = os.environ.get("RPI_DASHBOARD_HOST", "127.0.0.1")
     port = int(os.environ.get("RPI_DASHBOARD_PORT", "8787"))

@@ -94,13 +94,7 @@ Add a `share` object to an application to enable its Share button. A random shar
 
 The dashboard passes these values to zrok2's `--basic-auth` option. This protects the public application share. `apps.json` is excluded from Git because it can contain passwords. Use a unique password for every app share. The zrok2 CLI receives these credentials as process arguments, which local users with process-inspection access may see.
 
-For an existing share that runs outside the dashboard, set `share.external_url` to display its link without creating a duplicate share. The dashboard checks `zrok2 list shares --json` and shows the URL only while zrok reports its host as active. Status checks are cached for up to five seconds; the refresh button forces a new check. If zrok2 cannot be queried, the dashboard hides the URL and reports a status error. For example, if Waypoint already has a zrok2 share:
-
-```json
-"share": { "external_url": "https://waypoint.shares.zrok.io" }
-```
-
-The dashboard shows the external link and shared status. It does not start or stop that share.
+The dashboard discovers active public shares with `zrok2 list share --json`. It reads each share's `target` port and attaches the share URL to the configured app with the same `port`; no share URL or target needs to be entered in `apps.json`. It refreshes status when a dashboard tab opens and when you click Refresh. If zrok2 cannot be queried, the dashboard reports a status error. Apps still need a `share` object only if you want the dashboard's Share and Unshare controls to manage a share.
 
 For a stable public URL with current zrok2 CLI versions, use `"mode": "named"` and set `share.name`. Create the name once with `zrok2 create name waypoint`. If the name already exists, check `zrok2 list names` and reuse it. The Waypoint example uses this mode and selects the public name `public:waypoint`.
 
@@ -178,9 +172,8 @@ Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit 
 - `share.mode`: `named` for a stable public name on current zrok CLI versions.
 - `share.name`: public name used by `named` mode. Create it once with `zrok2 create name NAME`.
 - `share.basic_auth`: optional visitor username and password for public links.
-- `share.external_url`: display-only URL for a share managed outside the dashboard.
 - `share.target`: optional target override, such as `localhost:3002`.
 - `share.autostart`: starts the share with the dashboard.
 - `share.command`: optional complete zrok argument array for CLI compatibility.
 
-The browser refreshes cached status every five seconds. The dashboard checks systemd, Docker, and external zrok shares once at startup and again when you click Refresh. These checks do not run on every poll. The refresh button also reloads `apps.json`; valid changes appear without restarting the dashboard. If the JSON is invalid, the dashboard keeps the last valid configuration and shows an error. Changes to `autostart` take effect the next time the dashboard service starts. Process apps started by the dashboard use their in-memory process status.
+The browser fetches status when a tab opens and when you click Refresh. It does not poll in the background, so status can become stale until the next refresh. Service actions update that tab using the action response. The dashboard checks systemd, Docker, and zrok shares when a tab opens and when you click Refresh or reload `apps.json`. Valid configuration changes appear without restarting the dashboard. If the JSON is invalid, the dashboard keeps the last valid configuration and shows an error. Changes to `autostart` take effect the next time the dashboard service starts. Process apps started by the dashboard use their in-memory process status.
