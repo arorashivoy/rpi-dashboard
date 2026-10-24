@@ -140,20 +140,20 @@ class Dashboard:
     def _refresh_zrok_share_status(self):
         try:
             result = subprocess.run(
-                ["zrok2", "list", "share", "--json"],
+                ["zrok2", "list", "shares", "--json"],
                 text=True,
                 capture_output=True,
                 check=False,
                 timeout=8,
             )
             if result.returncode:
-                raise RuntimeError("zrok2 list share returned a non-zero exit status")
+                raise RuntimeError("zrok2 list shares returned a non-zero exit status")
             payload = json.loads(result.stdout)
             shares = payload.get("shares", payload.get("share")) if isinstance(payload, dict) else payload
             if isinstance(shares, dict):
                 shares = [shares]
             if not isinstance(shares, list):
-                raise ValueError("zrok2 list share returned an unexpected JSON format")
+                raise ValueError("zrok2 list shares returned an unexpected JSON format")
             urls_by_port = {}
             for share in shares:
                 if not isinstance(share, dict) or share.get("shareMode") != "public":
@@ -170,7 +170,7 @@ class Dashboard:
             error = None
         except (OSError, subprocess.SubprocessError, RuntimeError, ValueError):
             urls_by_port = {}
-            error = "Could not verify zrok2 share status; check `zrok2 list share --json`."
+            error = "Could not verify zrok2 share status; check `zrok2 list shares --json`."
 
         with self.lock:
             self.zrok_share_urls_by_port = urls_by_port

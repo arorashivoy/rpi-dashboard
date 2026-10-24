@@ -94,7 +94,7 @@ Add a `share` object to an application to enable its Share button. A random shar
 
 The dashboard passes these values to zrok2's `--basic-auth` option. This protects the public application share. `apps.json` is excluded from Git because it can contain passwords. Use a unique password for every app share. The zrok2 CLI receives these credentials as process arguments, which local users with process-inspection access may see.
 
-The dashboard discovers active public shares with `zrok2 list share --json`. It reads each share's `target` port and attaches the share URL to the configured app with the same `port`; no share URL or target needs to be entered in `apps.json`. It refreshes status when a dashboard tab opens and when you click Refresh. If zrok2 cannot be queried, the dashboard reports a status error. Apps still need a `share` object only if you want the dashboard's Share and Unshare controls to manage a share.
+The dashboard discovers active public shares with `zrok2 list shares --json`. It reads each share's `target` port and attaches the share URL to the configured app with the same `port`; no share URL or target needs to be entered in `apps.json`. It refreshes status when a dashboard tab opens and when you click Refresh. If zrok2 cannot be queried, the dashboard reports a status error. Apps still need a `share` object only if you want the dashboard's Share and Unshare controls to manage a share.
 
 For a stable public URL with current zrok2 CLI versions, use `"mode": "named"` and set `share.name`. Create the name once with `zrok2 create name waypoint`. If the name already exists, check `zrok2 list names` and reuse it. The Waypoint example uses this mode and selects the public name `public:waypoint`.
 
