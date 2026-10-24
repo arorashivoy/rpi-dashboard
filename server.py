@@ -27,7 +27,6 @@ class Dashboard:
         self.config = config
         self.apps = {app["id"]: app for app in config.get("apps", [])}
         self.config_path = config_path or config_file_path()
-        self.config_mtime_ns = self.config_path.stat().st_mtime_ns
         self.processes = {}
         self.share_processes = {}
         self.share_urls = {}
@@ -83,18 +82,13 @@ class Dashboard:
 
     def reload_config(self):
         try:
-            modified_ns = self.config_path.stat().st_mtime_ns
-            if modified_ns == self.config_mtime_ns:
-                return False
             config = load_config(self.config_path)
-            modified_ns = self.config_path.stat().st_mtime_ns
         except (OSError, ValueError) as exc:
             raise ValueError(f"Could not reload {self.config_path.name}: {exc}") from exc
 
         with self.lock:
             self.config = config
             self.apps = {app["id"]: app for app in config.get("apps", [])}
-            self.config_mtime_ns = modified_ns
         return True
 
     def start_app(self, app_id):
