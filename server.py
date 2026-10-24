@@ -7,7 +7,6 @@ import re
 import signal
 import subprocess
 import threading
-import time
 from collections import deque
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -17,7 +16,6 @@ from urllib.parse import unquote, urlparse
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = Path(os.environ.get("RPI_DASHBOARD_CONFIG", ROOT / "apps.json"))
 URL_PATTERN = re.compile(r"https?://[^\s\]\[()\"']+")
-ZROK_STATUS_CACHE_SECONDS = 5
 
 
 def config_file_path():
@@ -33,8 +31,8 @@ class Dashboard:
         self.share_processes = {}
         self.share_urls = {}
         self.errors = {}
+        self.service_status = {}
         self.lock = threading.RLock()
-        self.zrok_status_checked_at = 0.0
         self.zrok_share_hosts = set()
         self.zrok_status_error = None
 
@@ -47,30 +45,26 @@ class Dashboard:
             process = self.processes.get(app_id)
             share_process = self.share_processes.get(app_id)
             running_process = process is not None and process.poll() is None
-            sharing = (share_process is not None and share_process.poll() is None) or bool(external_share_url)
-            share_url = self.share_urls.get(app_id) or external_share_url
+            sharing = share_process is not None and share_process.poll() is None
+            share_url = self.share_urls.get(app_id)
+            cached_service_status = self.service_status.get(app_id, False)
             error = self.errors.get(app_id)
 
         if kind == "systemd":
-            running = all(
-                self._check_command(self._systemctl_command(app, "is-active", "--quiet", unit=unit))
-                for unit in self._systemd_units(app)
-            )
+            running = cached_service_status
         elif kind == "docker":
-            running = self._check_command(
-                ["docker", "inspect", "--format", "{{.State.Running}}", app["container"]],
-                expected_output="true",
-            )
+            running = cached_service_status
         else:
             running = running_process
 
         if external_share_url:
-            share_hosts, share_error = self._live_zrok_share_hosts()
             external_host = self._url_host(external_share_url)
-            sharing = bool(external_host and external_host in share_hosts)
+            with self.lock:
+                sharing = bool(external_host and external_host in self.zrok_share_hosts)
+                share_error = self.zrok_status_error
             share_url = external_share_url if sharing else None
             if share_error:
-                error = share_error
+                error = error or share_error
 
         port = app.get("port")
         local_url = app.get("url") or (f"http://127.0.0.1:{port}" if port else None)
@@ -105,46 +99,76 @@ class Dashboard:
         with self.lock:
             self.config = config
             self.apps = {app["id"]: app for app in config.get("apps", [])}
-            self.zrok_status_checked_at = 0.0
+            self.service_status = {
+                app_id: running
+                for app_id, running in self.service_status.items()
+                if app_id in self.apps
+            }
+        self.refresh_status()
         return True
 
-    def _live_zrok_share_hosts(self):
+    def refresh_status(self):
         with self.lock:
-            checked_at = self.zrok_status_checked_at
-            if time.monotonic() - checked_at < ZROK_STATUS_CACHE_SECONDS:
-                return self.zrok_share_hosts, self.zrok_status_error
+            apps = list(self.config.get("apps", []))
+        for app in apps:
+            if app.get("kind", "command") in {"systemd", "docker"}:
+                self._refresh_service_status(app)
+        self._refresh_zrok_share_hosts(apps)
 
-            try:
-                result = subprocess.run(
-                    ["zrok2", "list", "shares", "--json"],
-                    text=True,
-                    capture_output=True,
-                    check=False,
-                    timeout=8,
-                )
-                if result.returncode:
-                    raise RuntimeError("zrok2 list shares returned a non-zero exit status")
-                payload = json.loads(result.stdout)
-                shares = payload.get("shares") if isinstance(payload, dict) else None
-                if not isinstance(shares, list):
-                    raise ValueError("zrok2 list shares returned an unexpected JSON format")
-                hosts = {
-                    host
-                    for share in shares
-                    if isinstance(share, dict)
-                    for endpoint in share.get("frontendEndpoints", [])
-                    if isinstance(endpoint, str)
-                    if (host := self._url_host(endpoint))
-                }
-                error = None
-            except (OSError, subprocess.SubprocessError, RuntimeError, ValueError):
-                hosts = set()
-                error = "Could not verify zrok2 share status; check `zrok2 list shares --json`."
+    def _refresh_service_status(self, app):
+        kind = app.get("kind", "command")
+        if kind == "systemd":
+            running = all(
+                self._check_command(self._systemctl_command(app, "is-active", "--quiet", unit=unit))
+                for unit in self._systemd_units(app)
+            )
+        elif kind == "docker":
+            running = self._check_command(
+                ["docker", "inspect", "--format", "{{.State.Running}}", app["container"]],
+                expected_output="true",
+            )
+        else:
+            return
+        with self.lock:
+            self.service_status[app["id"]] = bool(running)
 
-            self.zrok_status_checked_at = time.monotonic()
+    def _refresh_zrok_share_hosts(self, apps):
+        if not any((app.get("share") or {}).get("external_url") for app in apps):
+            with self.lock:
+                self.zrok_share_hosts = set()
+                self.zrok_status_error = None
+            return
+
+        try:
+            result = subprocess.run(
+                ["zrok2", "list", "shares", "--json"],
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=8,
+            )
+            if result.returncode:
+                raise RuntimeError("zrok2 list shares returned a non-zero exit status")
+            payload = json.loads(result.stdout)
+            shares = payload.get("shares") if isinstance(payload, dict) else None
+            if not isinstance(shares, list):
+                raise ValueError("zrok2 list shares returned an unexpected JSON format")
+            hosts = {
+                host
+                for share in shares
+                if isinstance(share, dict)
+                for endpoint in share.get("frontendEndpoints", [])
+                if isinstance(endpoint, str)
+                if (host := self._url_host(endpoint))
+            }
+            error = None
+        except (OSError, subprocess.SubprocessError, RuntimeError, ValueError):
+            hosts = set()
+            error = "Could not verify zrok2 share status; check `zrok2 list shares --json`."
+
+        with self.lock:
             self.zrok_share_hosts = hosts
             self.zrok_status_error = error
-            return hosts, error
 
     @staticmethod
     def _url_host(url):
@@ -159,8 +183,10 @@ class Dashboard:
         try:
             if kind == "systemd":
                 self._run_checked(self._systemctl_command(app, "start"))
+                self._refresh_service_status(app)
             elif kind == "docker":
                 self._run_checked(["docker", "start", app["container"]])
+                self._refresh_service_status(app)
             elif kind == "command":
                 with self.lock:
                     existing = self.processes.get(app_id)
@@ -201,8 +227,10 @@ class Dashboard:
         try:
             if kind == "systemd":
                 self._run_checked(self._systemctl_command(app, "stop"))
+                self._refresh_service_status(app)
             elif kind == "docker":
                 self._run_checked(["docker", "stop", app["container"]])
+                self._refresh_service_status(app)
             else:
                 with self.lock:
                     process = self.processes.get(app_id)
@@ -481,6 +509,8 @@ def main():
                 dashboard.start_share(app["id"])
             except (RuntimeError, ValueError) as exc:
                 print(f"Could not start {app['id']} share: {exc}")
+
+    dashboard.refresh_status()
 
     host = os.environ.get("RPI_DASHBOARD_HOST", "127.0.0.1")
     port = int(os.environ.get("RPI_DASHBOARD_PORT", "8787"))
