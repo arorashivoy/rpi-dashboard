@@ -19,7 +19,7 @@ function escapeHtml(value) {
 function serviceCard(app, index) {
     const state = app.running ? "running" : "stopped";
     const mode = app.kind === "systemd" ? "SYSTEMD" : app.kind === "docker" ? "DOCKER" : "PROCESS";
-    const shareEnabled = app.share_mode && app.local_url;
+    const shareEnabled = app.share_managed && app.share_mode && app.local_url;
     const localLink = app.local_url
         ? `<a class="endpoint" href="${escapeHtml(app.local_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.local_url)}</a>`
         : '<span class="endpoint endpoint-muted">No local URL configured</span>';

@@ -36,12 +36,14 @@ class Dashboard:
     def app_status(self, app):
         app_id = app["id"]
         kind = app.get("kind", "command")
+        share_config = app.get("share") or {}
+        external_share_url = share_config.get("external_url")
         with self.lock:
             process = self.processes.get(app_id)
             share_process = self.share_processes.get(app_id)
             running_process = process is not None and process.poll() is None
-            sharing = share_process is not None and share_process.poll() is None
-            share_url = self.share_urls.get(app_id)
+            sharing = (share_process is not None and share_process.poll() is None) or bool(external_share_url)
+            share_url = self.share_urls.get(app_id) or external_share_url
             error = self.errors.get(app_id)
 
         if kind == "systemd":
@@ -72,7 +74,8 @@ class Dashboard:
             "running": bool(running),
             "sharing": sharing,
             "share_url": share_url,
-            "share_mode": app.get("share", {}).get("mode") if app.get("share") else None,
+            "share_mode": share_config.get("mode"),
+            "share_managed": bool(share_config) and not bool(external_share_url),
             "disabled": bool(app.get("disabled") or (kind == "command" and not app.get("start"))),
             "error": error,
         }
@@ -174,6 +177,8 @@ class Dashboard:
         share = app.get("share")
         if not share:
             raise ValueError("Sharing is not configured for this application")
+        if share.get("external_url"):
+            raise ValueError("This share is managed externally; set share.external_url only")
         with self.lock:
             existing = self.share_processes.get(app_id)
             if existing and existing.poll() is None:
@@ -338,6 +343,11 @@ def load_config(path=None):
             raise ValueError(f"Application {app_id!r} needs a Docker container")
         elif kind not in {"command", "systemd", "docker"}:
             raise ValueError(f"Application {app_id!r} has unsupported kind: {kind}")
+        external_share_url = (app.get("share") or {}).get("external_url")
+        if external_share_url:
+            parsed_url = urlparse(external_share_url)
+            if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+                raise ValueError(f"Application {app_id!r} share.external_url must be an HTTP or HTTPS URL")
     return config
 
 
