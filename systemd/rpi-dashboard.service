@@ -3,8 +3,8 @@ Description=Raspberry Pi service dashboard
 
 [Service]
 Type=simple
-WorkingDirectory=%h/rpi-dashboard
-ExecStart=/usr/bin/python3 %h/rpi-dashboard/server.py
+WorkingDirectory=%h/projects/rpi-dashboard
+ExecStart=%h/projects/rpi-dashboard/.venv/bin/python %h/projects/rpi-dashboard/server.py
 Restart=on-failure
 RestartSec=5
 
