@@ -245,6 +245,18 @@ class Dashboard:
         app = self._get_app(app_id)
         kind = app.get("kind", "command")
         try:
+            self._refresh_zrok_share_status()
+            if self.app_status(app)["sharing"]:
+                with self.lock:
+                    share_process = self.share_processes.get(app_id)
+                if share_process is None or share_process.poll() is not None:
+                    raise RuntimeError(
+                        "An active zrok share is not managed by this dashboard; stop the share before stopping this service"
+                    )
+                self.stop_share(app_id)
+                if self.app_status(app)["sharing"]:
+                    raise RuntimeError("The zrok share is still active; this service was left running")
+
             if kind == "systemd":
                 self._run_checked(self._systemctl_command(app, "stop"))
                 self._refresh_service_status(app)
@@ -273,6 +285,9 @@ class Dashboard:
             with self.lock:
                 self.errors.pop(app_id, None)
             return self.app_status(app)
+        except RuntimeError as exc:
+            self._set_error(app_id, exc)
+            raise
         except (KeyError, OSError, subprocess.SubprocessError) as exc:
             self._set_error(app_id, exc)
             raise RuntimeError(str(exc)) from exc
@@ -359,6 +374,7 @@ class Dashboard:
         with self.lock:
             self.share_urls.pop(app_id, None)
             self.errors.pop(app_id, None)
+        self._refresh_zrok_share_status()
         return self.app_status(app)
 
     def _read_share_output(self, app_id, process):

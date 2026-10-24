@@ -96,6 +96,8 @@ The dashboard passes these values to zrok2's `--basic-auth` option. This protect
 
 The dashboard discovers active public shares with `zrok2 list shares --json`. It reads each share's `target` port and attaches the share URL to the configured app with the same `port`; no share URL or target needs to be entered in `apps.json`. It refreshes status when a dashboard tab opens and when you click Refresh. If zrok2 cannot be queried, the dashboard reports a status error. Apps still need a `share` object only if you want the dashboard's Share and Unshare controls to manage a share.
 
+When you stop a service from the dashboard, it stops that service's dashboard-managed zrok share first and confirms the share is no longer active before stopping the service. If a share is active but was started outside the dashboard, the Stop action leaves the service running and asks you to stop that share first.
+
 For a stable public URL with current zrok2 CLI versions, use `"mode": "named"` and set `share.name`. Create the name once with `zrok2 create name waypoint`. If the name already exists, check `zrok2 list names` and reuse it. The Waypoint example uses this mode and selects the public name `public:waypoint`.
 
 ```sh
