@@ -8,7 +8,7 @@ PartOf=rpi-dashboard.service
 Type=simple
 WorkingDirectory=%h/projects/rpi-dashboard
 EnvironmentFile=%h/.config/rpi-dashboard-zrok.env
-ExecStart=/usr/bin/env zrok2 share public http://127.0.0.1:8787 --name-selection public:pi-dashboard --basic-auth=${ZROK_BASIC_AUTH} --headless
+ExecStart=/usr/bin/env zrok2 share public http://127.0.0.1:8787 --name-selection public:rpi-dashboard --basic-auth=${ZROK_BASIC_AUTH} --headless
 Restart=on-failure
 RestartSec=5
 

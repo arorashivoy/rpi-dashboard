@@ -66,11 +66,11 @@ To publish the dashboard, let zrok handle visitor authentication. Enable zrok2 w
 
 ```sh
 zrok2 enable <your-account-token>
-zrok2 create name pi-dashboard
-zrok2 share public http://127.0.0.1:8787 --name-selection public:pi-dashboard --basic-auth='your-user:use-a-unique-password' --headless
+zrok2 create name rpi-dashboard
+zrok2 share public http://127.0.0.1:8787 --name-selection public:rpi-dashboard --basic-auth='your-user:use-a-unique-password' --headless
 ```
 
-Get the enable token from your zrok account. If you already enabled this account on the Pi, skip `zrok2 enable`. Create `pi-dashboard` only once. If `zrok2 create name pi-dashboard` returns a conflict, check `zrok2 list names` and reuse the existing name. Choose another name if it belongs to a different namespace. Replace the example credentials with a unique pair. zrok requests them before it forwards traffic to the dashboard. Keep both the dashboard and zrok share processes running. For a temporary link, omit `--name-selection public:pi-dashboard`.
+Get the enable token from your zrok account. If you already enabled this account on the Pi, skip `zrok2 enable`. The `rpi-dashboard` name already exists, so do not create it again. Confirm it with `zrok2 list names`. Replace the example credentials with a unique pair. zrok requests them before it forwards traffic to the dashboard. Keep both the dashboard and zrok share processes running. For a temporary link, omit `--name-selection public:rpi-dashboard`.
 
 ## zrok shares
 

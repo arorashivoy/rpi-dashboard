@@ -6,14 +6,14 @@ Run these commands as the same Pi user that owns the dashboard and zrok environm
 
 ```sh
 zrok2 enable <your-account-token>
-zrok2 create name pi-dashboard
+zrok2 create name rpi-dashboard
 mkdir -p ~/.config/systemd/user
 mkdir -p ~/.config
 install -m 600 /dev/null ~/.config/rpi-dashboard-zrok.env
 nano ~/.config/rpi-dashboard-zrok.env
 ```
 
-Create the name only once. If `zrok2 create name pi-dashboard` returns a conflict, run `zrok2 list names` and reuse the existing name. If it belongs to a different namespace, select a unique name and update `--name-selection` in the service unit.
+The `rpi-dashboard` name already exists, so do not create it again. Confirm it with `zrok2 list names`. The service unit uses `--name-selection public:rpi-dashboard`.
 
 Add this line to `~/.config/rpi-dashboard-zrok.env`. Use your own unique credentials. Do not use a colon in either value.
 
