@@ -65,12 +65,17 @@ function render() {
     document.querySelector("#updated-at").textContent = `UPDATED ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
-async function refresh() {
+async function refresh(reloadConfig = false) {
     try {
-        const response = await fetch("/api/apps", { cache: "no-store" });
-        if (!response.ok) throw new Error(`Dashboard returned ${response.status}`);
-        ({ apps } = await response.json());
+        const response = await fetch(reloadConfig ? "/api/reload" : "/api/apps", {
+            cache: "no-store",
+            method: reloadConfig ? "POST" : "GET",
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || `Dashboard returned ${response.status}`);
+        ({ apps } = body);
         render();
+        if (reloadConfig) showToast("apps.json reloaded.");
     } catch (error) {
         document.querySelector("#updated-at").textContent = "CONNECTION LOST";
         showToast(error.message);
@@ -103,6 +108,6 @@ serviceList.addEventListener("click", async (event) => {
     }
 });
 
-document.querySelector("#refresh").addEventListener("click", refresh);
+document.querySelector("#refresh").addEventListener("click", () => refresh(true));
 refresh();
 setInterval(refresh, 5000);

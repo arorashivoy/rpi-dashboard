@@ -174,4 +174,4 @@ Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit 
 - `share.autostart`: starts the share with the dashboard.
 - `share.command`: optional complete zrok argument array for CLI compatibility.
 
-The dashboard polls service state every five seconds. Process apps started by the dashboard are tracked while it runs; systemd and Docker states are checked through their native CLIs.
+The dashboard polls service state every five seconds. Click the refresh button to reload `apps.json` after editing it; valid changes appear without restarting the dashboard. If the JSON is invalid, the dashboard keeps the last valid configuration and shows an error. Changes to `autostart` take effect the next time the dashboard service starts. Process apps started by the dashboard are tracked while it runs; systemd and Docker states are checked through their native CLIs.

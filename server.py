@@ -18,10 +18,16 @@ CONFIG_PATH = Path(os.environ.get("RPI_DASHBOARD_CONFIG", ROOT / "apps.json"))
 URL_PATTERN = re.compile(r"https?://[^\s\]\[()\"']+")
 
 
+def config_file_path():
+    return CONFIG_PATH if CONFIG_PATH.exists() else ROOT / "apps.example.json"
+
+
 class Dashboard:
-    def __init__(self, config):
+    def __init__(self, config, config_path=None):
         self.config = config
         self.apps = {app["id"]: app for app in config.get("apps", [])}
+        self.config_path = config_path or config_file_path()
+        self.config_mtime_ns = self.config_path.stat().st_mtime_ns
         self.processes = {}
         self.share_processes = {}
         self.share_urls = {}
@@ -75,6 +81,22 @@ class Dashboard:
     def list_apps(self):
         return [self.app_status(app) for app in self.config.get("apps", [])]
 
+    def reload_config(self):
+        try:
+            modified_ns = self.config_path.stat().st_mtime_ns
+            if modified_ns == self.config_mtime_ns:
+                return False
+            config = load_config(self.config_path)
+            modified_ns = self.config_path.stat().st_mtime_ns
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"Could not reload {self.config_path.name}: {exc}") from exc
+
+        with self.lock:
+            self.config = config
+            self.apps = {app["id"]: app for app in config.get("apps", [])}
+            self.config_mtime_ns = modified_ns
+        return True
+
     def start_app(self, app_id):
         app = self._get_app(app_id)
         kind = app.get("kind", "command")
@@ -104,6 +126,17 @@ class Dashboard:
             with self.lock:
                 self.errors.pop(app_id, None)
             return self.app_status(app)
+        except FileNotFoundError as exc:
+            start = app.get("start")
+            if start and isinstance(start[0], str) and any(char.isspace() for char in start[0]):
+                message = (
+                    f"Executable {start[0]!r} was not found. Put the executable and its arguments "
+                    'in separate start entries, for example ["npm", "start"].'
+                )
+            else:
+                message = str(exc)
+            self._set_error(app_id, message)
+            raise RuntimeError(message) from exc
         except (KeyError, OSError, subprocess.SubprocessError) as exc:
             self._set_error(app_id, exc)
             raise RuntimeError(str(exc)) from exc
@@ -283,8 +316,8 @@ class Dashboard:
         return app.get("units") or [app["unit"]]
 
 
-def load_config():
-    path = CONFIG_PATH if CONFIG_PATH.exists() else ROOT / "apps.example.json"
+def load_config(path=None):
+    path = path or config_file_path()
     with path.open(encoding="utf-8") as config_file:
         config = json.load(config_file)
     seen = set()
@@ -329,6 +362,15 @@ class Handler(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
+        if self.path == "/api/reload":
+            try:
+                reloaded = self.dashboard.reload_config()
+            except ValueError as exc:
+                self._json(400, {"error": str(exc)})
+                return
+            self._json(200, {"apps": self.dashboard.list_apps(), "reloaded": reloaded})
+            return
+
         match = re.fullmatch(r"/api/apps/([^/]+)/(start|stop|share|unshare)", urlparse(self.path).path)
         if not match:
             self._json(404, {"error": "Not found"})
