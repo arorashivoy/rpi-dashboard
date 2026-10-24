@@ -135,33 +135,32 @@ systemctl --user status rpi-dashboard.service
 
 The dashboard starts configured apps and their auto-start zrok shares. It skips disabled apps and does not start a share if its app fails to start. The dashboard and zrok processes run as the same user. For Docker control, give that user access to Docker; Docker group membership grants broad control over the host.
 
-For existing user services, configure one app entry per unit. This example tracks an app managed by `systemctl --user`:
+For existing user services that must start and stop together, configure one app entry with a `units` list. The dashboard starts and stops all listed units and reports the group as running only when all units are active:
 
 ```json
 {
-  "id": "waypoint-web",
-  "name": "Waypoint Web",
+  "id": "waypoint",
+  "name": "Waypoint",
   "kind": "systemd",
   "scope": "user",
-  "unit": "waypoint-web.service",
+  "units": [
+    "waypoint-web.service",
+    "waypoint-worker.service",
+    "waypoint-tunnel.service"
+  ],
   "port": 3002,
-  "autostart": true,
-  "share": {
-    "mode": "named",
-    "name": "waypoint",
-    "basic_auth": { "username": "replace-me", "password": "replace-me" },
-    "autostart": true
-  }
+  "autostart": true
 }
 ```
 
-Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit `scope` for system services. Configure additional units, such as workers or tunnels, as separate app entries.
+Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit `scope` for system services. Use `unit` for one service or `units` for a group, but do not set both.
 
 ## Configuration reference
 
 - `id`: unique letters, numbers, `_`, or `-`.
 - `kind`: `command` (default), `systemd`, or `docker`.
 - `scope`: `system` (default) or `user` for systemd-managed apps.
+- `unit` or `units`: one systemd unit name or a list of units managed together.
 - `autostart`: start this app when the dashboard service starts.
 - `start`: executable and arguments for a command app.
 - `stop.signal`: process signal for a command app; defaults to `SIGINT`.
