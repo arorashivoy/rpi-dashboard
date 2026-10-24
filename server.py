@@ -40,7 +40,7 @@ class Dashboard:
             error = self.errors.get(app_id)
 
         if kind == "systemd":
-            running = self._check_command(["systemctl", "is-active", "--quiet", app["unit"]])
+            running = self._check_command(self._systemctl_command(app, "is-active", "--quiet"))
         elif kind == "docker":
             running = self._check_command(
                 ["docker", "inspect", "--format", "{{.State.Running}}", app["container"]],
@@ -79,7 +79,7 @@ class Dashboard:
             raise ValueError("Configure a start command before launching this application")
         try:
             if kind == "systemd":
-                self._run_checked(["systemctl", "start", app["unit"]])
+                self._run_checked(self._systemctl_command(app, "start"))
             elif kind == "docker":
                 self._run_checked(["docker", "start", app["container"]])
             elif kind == "command":
@@ -110,7 +110,7 @@ class Dashboard:
         kind = app.get("kind", "command")
         try:
             if kind == "systemd":
-                self._run_checked(["systemctl", "stop", app["unit"]])
+                self._run_checked(self._systemctl_command(app, "stop"))
             elif kind == "docker":
                 self._run_checked(["docker", "stop", app["container"]])
             else:
@@ -267,6 +267,13 @@ class Dashboard:
         except OSError:
             return False
 
+    @staticmethod
+    def _systemctl_command(app, *arguments):
+        command = ["systemctl"]
+        if app.get("scope", "system") == "user":
+            command.append("--user")
+        return [*command, *arguments, app["unit"]]
+
 
 def load_config():
     path = CONFIG_PATH if CONFIG_PATH.exists() else ROOT / "apps.example.json"
@@ -281,8 +288,11 @@ def load_config():
         kind = app.get("kind", "command")
         if kind == "command" and not app.get("start"):
             app["disabled"] = True
-        elif kind == "systemd" and not app.get("unit"):
-            raise ValueError(f"Application {app_id!r} needs a systemd unit")
+        elif kind == "systemd":
+            if not app.get("unit"):
+                raise ValueError(f"Application {app_id!r} needs a systemd unit")
+            if app.get("scope", "system") not in {"system", "user"}:
+                raise ValueError(f"Application {app_id!r} systemd scope must be 'system' or 'user'")
         elif kind == "docker" and not app.get("container"):
             raise ValueError(f"Application {app_id!r} needs a Docker container")
         elif kind not in {"command", "systemd", "docker"}:
@@ -342,12 +352,14 @@ def main():
     Handler.dashboard = dashboard
 
     for app in config.get("apps", []):
+        startup_failed = False
         if app.get("autostart") and not app.get("disabled"):
             try:
                 dashboard.start_app(app["id"])
             except (RuntimeError, ValueError) as exc:
+                startup_failed = True
                 print(f"Could not start {app['id']}: {exc}")
-        if app.get("share", {}).get("autostart"):
+        if app.get("share", {}).get("autostart") and not app.get("disabled") and not startup_failed:
             try:
                 dashboard.start_share(app["id"])
             except (RuntimeError, ValueError) as exc:

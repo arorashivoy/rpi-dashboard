@@ -9,10 +9,11 @@
       "start": [],
       "stop": { "signal": "SIGINT" },
       "port": 3000,
-      "autostart": false,
+      "autostart": true,
       "share": {
         "mode": "random",
-        "basic_auth": { "username": "replace-me", "password": "replace-me" }
+        "basic_auth": { "username": "replace-me", "password": "replace-me" },
+        "autostart": true
       }
     },
     {
@@ -24,10 +25,11 @@
       "start": [],
       "stop": { "signal": "SIGINT" },
       "port": 3001,
-      "autostart": false,
+      "autostart": true,
       "share": {
         "mode": "random",
-        "basic_auth": { "username": "replace-me", "password": "replace-me" }
+        "basic_auth": { "username": "replace-me", "password": "replace-me" },
+        "autostart": true
       }
     },
     {
@@ -38,7 +40,7 @@
       "container": "pihole",
       "port": 80,
       "url": "http://127.0.0.1/admin/",
-      "autostart": false
+      "autostart": true
     },
     {
       "id": "waypoint",
@@ -49,11 +51,12 @@
       "start": [],
       "stop": { "signal": "SIGINT" },
       "port": 3002,
-      "autostart": false,
+      "autostart": true,
       "share": {
         "mode": "named",
         "name": "waypoint",
-        "basic_auth": { "username": "replace-me", "password": "replace-me" }
+        "basic_auth": { "username": "replace-me", "password": "replace-me" },
+        "autostart": true
       }
     }
   ]

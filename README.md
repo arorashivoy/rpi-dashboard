@@ -114,40 +114,54 @@ The dashboard invokes `zrok share public --headless localhost:PORT` for a random
 
 ## Start at boot
 
-Install the project in a stable path on the Pi, such as `/opt/rpi-dashboard`, and copy your configured `apps.json` there. Create `/etc/systemd/system/rpi-dashboard.service`:
+Install the project in the account's home directory. For example, use `/home/pi/rpi-dashboard`. Copy `apps.example.json` to `apps.json`, set each app's start details, and set `autostart` to `true` for each app to launch at dashboard startup. Set `share.autostart` to `true` for each zrok share to start with its app. The example enables these flags. Empty command entries remain disabled until you configure their `start` arrays.
 
-```ini
-[Unit]
-Description=Raspberry Pi service dashboard
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/opt/rpi-dashboard
-ExecStart=/usr/bin/python3 /opt/rpi-dashboard/server.py
-Restart=on-failure
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable the dashboard at boot. Any app with `autostart: true` and any share with `share.autostart: true` also start when the dashboard starts.
+Install the included user service:
 
 ```sh
-sudo systemctl daemon-reload
-sudo systemctl enable --now rpi-dashboard.service
-sudo systemctl status rpi-dashboard.service
+mkdir -p ~/.config/systemd/user
+cp systemd/rpi-dashboard.service ~/.config/systemd/user/
 ```
 
-For Docker control, add the `pi` user to the Docker group or run the dashboard with a suitable service account. Group membership grants broad control over the host; review that access before enabling it.
+Enable lingering so the user service manager runs at boot without an interactive login. Then enable and start the dashboard:
+
+```sh
+sudo loginctl enable-linger "$USER"
+systemctl --user daemon-reload
+systemctl --user enable --now rpi-dashboard.service
+systemctl --user status rpi-dashboard.service
+```
+
+The dashboard starts configured apps and their auto-start zrok shares. It skips disabled apps and does not start a share if its app fails to start. The dashboard and zrok processes run as the same user. For Docker control, give that user access to Docker; Docker group membership grants broad control over the host.
+
+For existing user services, configure one app entry per unit. This example tracks an app managed by `systemctl --user`:
+
+```json
+{
+  "id": "waypoint-web",
+  "name": "Waypoint Web",
+  "kind": "systemd",
+  "scope": "user",
+  "unit": "waypoint-web.service",
+  "port": 3002,
+  "autostart": true,
+  "share": {
+    "mode": "named",
+    "name": "waypoint",
+    "basic_auth": { "username": "replace-me", "password": "replace-me" },
+    "autostart": true
+  }
+}
+```
+
+Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit `scope` for system services. Configure additional units, such as workers or tunnels, as separate app entries.
 
 ## Configuration reference
 
 - `id`: unique letters, numbers, `_`, or `-`.
 - `kind`: `command` (default), `systemd`, or `docker`.
+- `scope`: `system` (default) or `user` for systemd-managed apps.
+- `autostart`: start this app when the dashboard service starts.
 - `start`: executable and arguments for a command app.
 - `stop.signal`: process signal for a command app; defaults to `SIGINT`.
 - `stop.command`: optional executable and arguments that replace signal-based stopping.

@@ -1,0 +1,12 @@
+[Unit]
+Description=Raspberry Pi service dashboard
+
+[Service]
+Type=simple
+WorkingDirectory=%h/rpi-dashboard
+ExecStart=/usr/bin/python3 %h/rpi-dashboard/server.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
