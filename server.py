@@ -4,6 +4,7 @@
 import json
 import os
 import re
+import shlex
 import signal
 import subprocess
 import threading
@@ -128,10 +129,10 @@ class Dashboard:
                 for unit in self._systemd_units(app)
             )
         elif kind == "docker":
-            running = self._check_command(
-                ["docker", "inspect", "--format", "{{.State.Running}}", app["container"]],
-                expected_output="true",
+            result = self._docker_command(
+                ["docker", "inspect", "--format", "{{.State.Running}}", app["container"]]
             )
+            running = result.returncode == 0 and result.stdout.strip().lower() == "true"
         else:
             return
         with self.lock:
@@ -205,7 +206,7 @@ class Dashboard:
                 self._run_checked(self._systemctl_command(app, "start"))
                 self._refresh_service_status(app)
             elif kind == "docker":
-                self._run_checked(["docker", "start", app["container"]])
+                self._run_docker_checked(["docker", "start", app["container"]])
                 self._refresh_service_status(app)
             elif kind == "command":
                 with self.lock:
@@ -261,7 +262,7 @@ class Dashboard:
                 self._run_checked(self._systemctl_command(app, "stop"))
                 self._refresh_service_status(app)
             elif kind == "docker":
-                self._run_checked(["docker", "stop", app["container"]])
+                self._run_docker_checked(["docker", "stop", app["container"]])
                 self._refresh_service_status(app)
             else:
                 with self.lock:
@@ -407,6 +408,28 @@ class Dashboard:
     @staticmethod
     def _run_checked(command, cwd=None):
         result = subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
+        if result.returncode:
+            detail = (result.stderr or result.stdout).strip()
+            raise RuntimeError(detail or f"Command failed with status {result.returncode}")
+
+    @staticmethod
+    def _docker_command(command):
+        result = subprocess.run(command, text=True, capture_output=True, check=False)
+        if result.returncode and "permission denied" in result.stderr.lower():
+            # A lingering systemd user manager can retain the group list from
+            # before the account was added to the docker group. Run only the
+            # Docker CLI command with that supplementary group in this case.
+            result = subprocess.run(
+                ["sg", "docker", "-c", shlex.join(command)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        return result
+
+    @classmethod
+    def _run_docker_checked(cls, command):
+        result = cls._docker_command(command)
         if result.returncode:
             detail = (result.stderr or result.stdout).strip()
             raise RuntimeError(detail or f"Command failed with status {result.returncode}")
