@@ -106,10 +106,51 @@ systemctl --user status rpi-dashboard-tunnel.service
 
 `cloudflare.subdomain` and `cloudflare.visibility` in `apps.json` control the address and label shown in the dashboard. They do not create DNS routes or Access policies. Configure the matching Tunnel route and Access settings in Cloudflare as well.
 
-- **Private:** create a Cloudflare Zero Trust Access application for that hostname and an Allow policy with the exact email addresses that should get in. Enable email One-Time PIN if users should sign in with a code. Keep the dashboard limited to your own email.
+- **Private:** attach a Cloudflare Zero Trust Access application to the hostname. Users sign in with an email One-Time PIN. They do not need a Cloudflare account.
 - **Public:** do not attach an Access application to the hostname. Anyone can reach the app while it is running. Two Rooms is public so friends can join without signing in.
 
-For the live setup, the dashboard and Block Logic have explicit email allowlists. Two Rooms has no Access gate. Changing `visibility` in `apps.json` alone does not add or remove that gate.
+For the live setup, the dashboard and Block Logic allow only `shivoy1183@gmail.com` and `ritishasingh2703@gmail.com`. Both use One-Time PIN as the only login method. Two Rooms has no Access gate. Changing `visibility` in `apps.json` alone does not add or remove that gate.
+
+### Why a login asks for a Cloudflare account
+
+An Access application has a list of allowed login methods. If the list contains only the "Cloudflare" provider, the visitor must have a Cloudflare account. To use email codes, set the list of the application to **One-time PIN** only. Do not add the "Cloudflare" provider.
+
+### Set up a new share
+
+Use these steps for each new app. Do the Access steps before the DNS step, so a private app is never open without a gate.
+
+1. Add the app to `apps.json`. Set `cloudflare.subdomain` to a new DNS label. Set `cloudflare.visibility` to `private` or `public`. Restart the dashboard: `systemctl --user restart rpi-dashboard.service`.
+2. Add a route to `~/.cloudflared/rpi-dashboard.yml`. Put it above the `http_status:404` line:
+
+   ```yaml
+   - hostname: <subdomain>.arorashivoy.win
+     service: http://127.0.0.1:<port>
+   ```
+
+3. Validate the file and restart the Tunnel:
+
+   ```sh
+   cloudflared --config ~/.cloudflared/rpi-dashboard.yml tunnel ingress validate
+   systemctl --user restart rpi-dashboard-tunnel.service
+   ```
+
+4. **Private share only.** In Cloudflare Zero Trust, go to Access, then Applications, then Add an application, then Self-hosted.
+   - Set the domain to `<subdomain>.arorashivoy.win`.
+   - Under Login methods, select **One-time PIN** only. Turn on "Instant Auth" so visitors skip the provider list.
+   - Add an Allow policy. Use the **Emails** selector and list each allowed address. To reuse the current list, attach the existing policy named `Home`.
+   - Do not add a Bypass or Everyone rule.
+5. **Public share.** Do not create an Access application. Skip step 4.
+6. Create the DNS route:
+
+   ```sh
+   cloudflared tunnel route dns rpi-dashboard <subdomain>.arorashivoy.win
+   ```
+
+7. Test in a private browser window. A private share shows an email field and sends a code to an allowed address. A public share opens the app at once. If the app is stopped, the page shows a 502 error. This is normal.
+
+To add or remove a person for a private share, edit the emails of its Allow policy in Cloudflare. Changes apply at once. You do not restart anything.
+
+The Waypoint hostname uses its own Tunnel and Access application. It also uses One-Time PIN. Waypoint has its own accounts behind the Access gate.
 
 ## Run the dashboard
 
