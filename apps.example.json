@@ -29,7 +29,7 @@
                 "signal": "SIGINT"
             },
             "port": 5001,
-            "autostart": true,
+            "autostart": false,
             "cloudflare": {
                 "subdomain": "two-rooms",
                 "visibility": "public"

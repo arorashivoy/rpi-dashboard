@@ -1,30 +1,32 @@
-# Cloudflare Tunnel user service
+# User services
 
-This dashboard Tunnel uses one `cloudflared` process for its configured application hostnames. Store the locally-managed Tunnel configuration and credentials in `~/.cloudflared/` with permissions restricted to the Pi user. The YAML config must include the Tunnel UUID, credentials file, each hostname-to-origin ingress rule, and a final `http_status:404` rule. Other projects can keep their own Tunnel services; the Pi's existing Waypoint Tunnel is separate.
+The project provides two user services:
 
-Install or update the unit as the Pi user:
+- `rpi-dashboard.service` runs the dashboard.
+- `rpi-dashboard-tunnel.service` runs the locally-managed Cloudflare Tunnel defined in `~/.cloudflared/rpi-dashboard.yml`.
+
+Install or update both units from the project directory:
 
 ```sh
 mkdir -p ~/.config/systemd/user
-cp systemd/rpi-dashboard-tunnel.service ~/.config/systemd/user/
+cp systemd/rpi-dashboard.service systemd/rpi-dashboard-tunnel.service ~/.config/systemd/user/
+sudo loginctl enable-linger "$USER"
 systemctl --user daemon-reload
-systemctl --user enable --now rpi-dashboard-tunnel.service
+systemctl --user enable --now rpi-dashboard.service rpi-dashboard-tunnel.service
 ```
 
-After changing the Tunnel configuration:
+Check their state and logs with:
 
 ```sh
+systemctl --user status rpi-dashboard.service rpi-dashboard-tunnel.service
+journalctl --user -u rpi-dashboard.service -u rpi-dashboard-tunnel.service -f
+```
+
+After editing the Cloudflare Tunnel configuration, validate it and restart only the Tunnel service:
+
+```sh
+cloudflared --config ~/.cloudflared/rpi-dashboard.yml tunnel ingress validate
 systemctl --user restart rpi-dashboard-tunnel.service
-systemctl --user status rpi-dashboard-tunnel.service
 ```
 
-To remove the old dashboard zrok unit, disable it and remove its unit and environment file:
-
-```sh
-systemctl --user disable --now rpi-dashboard-zrok.service
-rm -f ~/.config/systemd/user/rpi-dashboard-zrok.service
-rm -f ~/.config/rpi-dashboard-zrok.env
-systemctl --user daemon-reload
-```
-
-Do not remove `~/.config/zrok` or disable zrok account-wide until you have confirmed no other project uses it.
+The Waypoint Tunnel is managed by a separate project and unit. It is not started or stopped by these units.
