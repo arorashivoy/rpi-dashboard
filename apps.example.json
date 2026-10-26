@@ -1,5 +1,23 @@
 {
+    "cloudflare": {
+        "domain": "arorashivoy.win"
+    },
     "apps": [
+        {
+            "id": "rpi-dashboard",
+            "name": "Raspberry Pi Dashboard",
+            "description": "Service control and Cloudflare route management",
+            "kind": "systemd",
+            "scope": "user",
+            "unit": "rpi-dashboard.service",
+            "port": 8787,
+            "url": "http://127.0.0.1:8787",
+            "managed": false,
+            "cloudflare": {
+                "subdomain": "dashboard",
+                "visibility": "private"
+            }
+        },
         {
             "id": "two-rooms",
             "name": "Two Rooms and a Boom",
@@ -12,6 +30,10 @@
             },
             "port": 3000,
             "autostart": true,
+            "cloudflare": {
+                "subdomain": "two-rooms",
+                "visibility": "private"
+            },
             "share": {
                 "mode": "random",
                 "basic_auth": {
@@ -33,6 +55,10 @@
             },
             "port": 3001,
             "autostart": true,
+            "cloudflare": {
+                "subdomain": "block-logic",
+                "visibility": "private"
+            },
             "share": {
                 "mode": "random",
                 "basic_auth": {
@@ -50,7 +76,11 @@
             "container": "pihole",
             "port": 80,
             "url": "http://127.0.0.1/admin/",
-            "autostart": true
+            "autostart": true,
+            "cloudflare": {
+                "subdomain": "pihole",
+                "visibility": "private"
+            }
         },
         {
             "id": "waypoint",
@@ -64,6 +94,10 @@
             },
             "port": 3002,
             "autostart": true,
+            "cloudflare": {
+                "subdomain": "waypoint",
+                "visibility": "private"
+            },
             "share": {
                 "mode": "named",
                 "name": "waypoint",

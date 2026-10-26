@@ -2,7 +2,7 @@
 
 A small service dashboard for a Raspberry Pi. It uses Python's standard library and static browser files. It has no Python package dependencies.
 
-The dashboard can start or stop configured command-line apps, systemd units, and existing Docker containers. It can also create optional public zrok shares. A share is a separate action from starting an app.
+The dashboard can start or stop configured command-line apps, systemd units, and existing Docker containers. It can also create optional public zrok shares. A share is a separate action from starting an app. Cloudflare hostname and visibility settings can be recorded per app in `apps.json`; they describe the intended hostname and whether Cloudflare Access should protect it. They do not provision DNS, a Tunnel, or Access policies by themselves.
 
 ## Requirements
 
@@ -170,6 +170,10 @@ Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit 
 - `stop.signal`: process signal for a command app; defaults to `SIGINT`.
 - `stop.command`: optional executable and arguments that replace signal-based stopping.
 - `port` and `url`: local endpoint shown in the dashboard.
+- `managed`: set to `false` for status-only entries such as the dashboard itself.
+- top-level `cloudflare.domain`: base domain used to display app hostnames.
+- `cloudflare.subdomain`: DNS label for this app, such as `dashboard`.
+- `cloudflare.visibility`: `private` (default) or `public`.
 - `share.mode`: `random` or `reserved`.
 - `share.mode`: `named` for a stable public name on current zrok CLI versions.
 - `share.name`: public name used by `named` mode. Create it once with `zrok2 create name NAME`.
@@ -179,3 +183,28 @@ Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit 
 - `share.command`: optional complete zrok argument array for CLI compatibility.
 
 The browser fetches status when a tab opens and when you click Refresh. It does not poll in the background, so status can become stale until the next refresh. Service actions update that tab using the action response. The dashboard checks systemd, Docker, and zrok shares when a tab opens and when you click Refresh or reload `apps.json`. Valid configuration changes appear without restarting the dashboard. If the JSON is invalid, the dashboard keeps the last valid configuration and shows an error. Changes to `autostart` take effect the next time the dashboard service starts. Process apps started by the dashboard use their in-memory process status.
+
+## Cloudflare hostname settings
+
+Set the base domain once and add a `cloudflare` object to each app. Include the dashboard as a read-only systemd app so it appears in the service list without offering controls that could stop the dashboard itself:
+
+```json
+{
+  "cloudflare": { "domain": "arorashivoy.win" },
+  "apps": [
+    {
+      "id": "rpi-dashboard",
+      "name": "Raspberry Pi Dashboard",
+      "kind": "systemd",
+      "scope": "user",
+      "unit": "rpi-dashboard.service",
+      "port": 8787,
+      "url": "http://127.0.0.1:8787",
+      "managed": false,
+      "cloudflare": { "subdomain": "dashboard", "visibility": "private" }
+    }
+  ]
+}
+```
+
+`visibility` accepts `private` or `public` and defaults to `private`. Protect private hostnames with a Cloudflare Access policy, such as email one-time PIN with an allowlist. Public hostnames have no Access gate and should only be used for apps intended for anyone to reach. The dashboard shows the configured hostname and visibility; a live hostname still requires a configured Cloudflare Tunnel, DNS route, and matching Access policy.

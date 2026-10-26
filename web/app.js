@@ -26,6 +26,9 @@ function serviceCard(app, index) {
     const localLink = app.local_url
         ? `<a class="endpoint" href="${escapeHtml(app.local_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.local_url)}</a>`
         : '<span class="endpoint endpoint-muted">No local URL configured</span>';
+    const cloudflareLink = app.cloudflare_url
+        ? `<a class="share-link" href="${escapeHtml(app.cloudflare_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.cloudflare_url)} · ${escapeHtml(app.cloudflare_visibility || "private").toUpperCase()}</a>`
+        : "";
     const sharedLink = app.share_url
         ? `<a class="share-link" href="${escapeHtml(app.share_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.share_url)}</a>`
         : "";
@@ -38,6 +41,12 @@ function serviceCard(app, index) {
     const launchButton = app.disabled
         ? `<button class="action-button launch" type="button" disabled title="Configure a start command first">${icons.launch}<span>CONFIGURE</span></button>`
         : `<button class="action-button launch" data-action="start" data-id="${escapeHtml(app.id)}" title="Launch service">${icons.launch}<span>LAUNCH</span></button>`;
+    const serviceActions = app.managed === false ? "" : `<div class="service-actions">
+      ${app.running
+            ? `<button class="action-button stop" data-action="stop" data-id="${escapeHtml(app.id)}" title="Stop service">${icons.stop}<span>STOP</span></button>`
+            : launchButton}
+      ${shareButton}
+    </div>`;
 
     return `<article class="service-row ${state}" style="--row-index:${index}">
     <div class="service-main">
@@ -47,15 +56,10 @@ function serviceCard(app, index) {
     </div>
     <div class="service-meta">
       <div class="port-block"><span>PORT</span><strong>${app.port ? escapeHtml(app.port) : "—"}</strong></div>
-      <div class="link-block"><span>LOCAL ADDRESS</span>${localLink}${sharedLink}</div>
+      <div class="link-block"><span>LOCAL ADDRESS</span>${localLink}${cloudflareLink}${sharedLink}</div>
     </div>
     ${message}
-    <div class="service-actions">
-      ${app.running
-            ? `<button class="action-button stop" data-action="stop" data-id="${escapeHtml(app.id)}" title="Stop service">${icons.stop}<span>STOP</span></button>`
-            : launchButton}
-      ${shareButton}
-    </div>
+    ${serviceActions}
   </article>`;
 }
 

@@ -84,17 +84,29 @@ class Dashboard:
             "kind": kind,
             "port": port,
             "local_url": local_url,
+            "cloudflare_url": self._cloudflare_url(app),
+            "cloudflare_visibility": (app.get("cloudflare") or {}).get("visibility", "private"),
+            "managed": app.get("managed", True),
             "running": bool(running),
             "sharing": sharing,
             "share_url": share_url,
             "share_mode": share_config.get("mode"),
             "share_managed": share_managed,
-            "disabled": bool(app.get("disabled") or (kind == "command" and not app.get("start"))),
+            "disabled": bool(app.get("disabled") or not app.get("managed", True) or (kind == "command" and not app.get("start"))),
             "error": error,
         }
 
     def list_apps(self):
         return [self.app_status(app) for app in self.config.get("apps", [])]
+
+    def _cloudflare_url(self, app):
+        route = app.get("cloudflare") or {}
+        domain = (self.config.get("cloudflare") or {}).get("domain", "").strip().strip(".")
+        subdomain = route.get("subdomain")
+        if not domain or not subdomain:
+            return None
+        host = f"{subdomain}.{domain}" if subdomain != "@" else domain
+        return f"https://{host}"
 
     def reload_config(self):
         try:
@@ -198,6 +210,8 @@ class Dashboard:
 
     def start_app(self, app_id):
         app = self._get_app(app_id)
+        if not app.get("managed", True):
+            raise ValueError("This application is shown for status only and cannot be controlled here")
         kind = app.get("kind", "command")
         if app.get("disabled") or (kind == "command" and not app.get("start")):
             raise ValueError("Configure a start command before launching this application")
@@ -244,6 +258,8 @@ class Dashboard:
 
     def stop_app(self, app_id):
         app = self._get_app(app_id)
+        if not app.get("managed", True):
+            raise ValueError("This application is shown for status only and cannot be controlled here")
         kind = app.get("kind", "command")
         try:
             self._refresh_zrok_share_status()
@@ -473,6 +489,13 @@ def load_config(path=None):
         if not re.fullmatch(r"[a-zA-Z0-9_-]+", app_id) or app_id in seen:
             raise ValueError(f"Invalid or duplicate application id: {app_id!r}")
         seen.add(app_id)
+        route = app.get("cloudflare") or {}
+        visibility = route.get("visibility", "private")
+        if visibility not in {"private", "public"}:
+            raise ValueError(f"Application {app_id!r} cloudflare.visibility must be 'private' or 'public'")
+        subdomain = route.get("subdomain")
+        if subdomain is not None and (not isinstance(subdomain, str) or not re.fullmatch(r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?", subdomain)):
+            raise ValueError(f"Application {app_id!r} cloudflare.subdomain must be a valid DNS label")
         kind = app.get("kind", "command")
         if kind == "command" and not app.get("start"):
             app["disabled"] = True
