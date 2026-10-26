@@ -32,7 +32,7 @@
             "autostart": true,
             "cloudflare": {
                 "subdomain": "two-rooms",
-                "visibility": "private"
+                "visibility": "public"
             }
         },
         {
