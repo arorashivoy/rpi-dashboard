@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import threading
@@ -315,6 +316,41 @@ def load_config(path=None):
     return config
 
 
+def system_stats():
+    stats = {"cores": os.cpu_count()}
+    try:
+        stats["load"] = [float(value) for value in Path("/proc/loadavg").read_text().split()[:3]]
+    except (OSError, ValueError):
+        pass
+    try:
+        meminfo = {}
+        for line in Path("/proc/meminfo").read_text().splitlines():
+            key, _, rest = line.partition(":")
+            meminfo[key] = int(rest.split()[0]) * 1024
+        stats["ram"] = {"used": meminfo["MemTotal"] - meminfo["MemAvailable"], "total": meminfo["MemTotal"]}
+        stats["swap"] = {"used": meminfo["SwapTotal"] - meminfo["SwapFree"], "total": meminfo["SwapTotal"]}
+    except (OSError, ValueError, KeyError):
+        pass
+    try:
+        stats["temp_c"] = int(Path("/sys/class/thermal/thermal_zone0/temp").read_text()) / 1000
+    except (OSError, ValueError):
+        pass
+    try:
+        stats["freq_mhz"] = int(Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq").read_text()) / 1000
+    except (OSError, ValueError):
+        pass
+    try:
+        stats["uptime_s"] = float(Path("/proc/uptime").read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        disk = shutil.disk_usage("/")
+        stats["disk"] = {"used": disk.used, "total": disk.total}
+    except OSError:
+        pass
+    return stats
+
+
 class Handler(SimpleHTTPRequestHandler):
     dashboard = None
 
@@ -325,6 +361,8 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/api/apps":
             self.dashboard.refresh_status()
             self._json(200, {"apps": self.dashboard.list_apps()})
+        elif self.path == "/api/stats":
+            self._json(200, system_stats())
         elif self.path == "/api/health":
             self._json(200, {"ok": True})
         else:

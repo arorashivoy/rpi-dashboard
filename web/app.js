@@ -30,11 +30,9 @@ function serviceCard(app, index) {
     const launchButton = app.disabled
         ? `<button class="action-button launch" type="button" disabled title="Configure a start command first">${icons.launch}<span>CONFIGURE</span></button>`
         : `<button class="action-button launch" data-action="start" data-id="${escapeHtml(app.id)}" title="Launch service">${icons.launch}<span>LAUNCH</span></button>`;
-    const serviceActions = app.managed === false ? "" : `<div class="service-actions">
-      ${app.running
-            ? `<button class="action-button stop" data-action="stop" data-id="${escapeHtml(app.id)}" title="Stop service">${icons.stop}<span>STOP</span></button>`
-            : launchButton}
-    </div>`;
+    const serviceActions = `<div class="service-actions">${app.managed === false ? "" : app.running
+        ? `<button class="action-button stop" data-action="stop" data-id="${escapeHtml(app.id)}" title="Stop service">${icons.stop}<span>STOP</span></button>`
+        : launchButton}</div>`;
 
     return `<article class="service-row ${state}" style="--row-index:${index}">
     <div class="service-main">
@@ -44,7 +42,7 @@ function serviceCard(app, index) {
     </div>
     <div class="service-meta">
       <div class="port-block"><span>PORT</span><strong>${app.port ? escapeHtml(app.port) : "—"}</strong></div>
-      <div class="link-block"><span>LOCAL ADDRESS</span>${localLink}${cloudflareLink}</div>
+      <div class="link-block"><span>ADDRESS</span>${localLink}${cloudflareLink}</div>
     </div>
     ${message}
     ${serviceActions}
@@ -60,10 +58,43 @@ function render() {
     document.querySelector("#updated-at").textContent = `UPDATED ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
+function formatBytes(bytes) {
+    const gib = bytes / 2 ** 30;
+    return gib >= 1 ? `${gib.toFixed(1)}G` : `${Math.round(bytes / 2 ** 20)}M`;
+}
+
+function formatUptime(seconds) {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return days ? `${days}d ${hours}h` : hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+async function loadStats() {
+    const target = document.querySelector("#nerd-stats");
+    try {
+        const response = await fetch("/api/stats", { cache: "no-store" });
+        if (!response.ok) throw new Error();
+        const s = await response.json();
+        const parts = [];
+        if (s.load) parts.push(`LOAD ${s.load.map((value) => value.toFixed(2)).join(" ")}`);
+        if (s.ram) parts.push(`RAM ${formatBytes(s.ram.used)}/${formatBytes(s.ram.total)}`);
+        if (s.swap) parts.push(`SWAP ${formatBytes(s.swap.used)}/${formatBytes(s.swap.total)}`);
+        if (s.disk) parts.push(`DISK ${formatBytes(s.disk.used)}/${formatBytes(s.disk.total)}`);
+        if (s.temp_c != null) parts.push(`${s.temp_c.toFixed(1)}°C`);
+        if (s.freq_mhz != null) parts.push(`${Math.round(s.freq_mhz)} MHz`);
+        if (s.uptime_s != null) parts.push(`UP ${formatUptime(s.uptime_s)}`);
+        target.textContent = parts.join(" · ");
+    } catch {
+        target.textContent = "";
+    }
+}
+
 async function refresh(reloadConfig = false) {
     if (refreshInFlight) return;
     refreshInFlight = true;
     refreshButton.disabled = true;
+    loadStats();
     try {
         const response = await fetch(reloadConfig ? "/api/reload" : "/api/apps", {
             cache: "no-store",

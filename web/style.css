@@ -235,7 +235,7 @@ h1 em {
 .service-row {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(220px, 1.05fr) minmax(250px, 1fr) auto;
+    grid-template-columns: minmax(220px, 1.05fr) minmax(250px, 1fr) 90px;
     align-items: center;
     gap: 22px;
     min-height: 116px;
@@ -368,6 +368,10 @@ h1 em {
     gap: 7px;
 }
 
+.service-actions:empty {
+    display: none;
+}
+
 .action-button {
     min-width: 86px;
     height: 34px;
@@ -451,6 +455,14 @@ h1 em {
     font-size: 9px;
 }
 
+.nerd-stats {
+    flex: 1;
+    padding: 0 24px;
+    text-align: center;
+    color: #aab0a6;
+    font-variant-numeric: tabular-nums;
+}
+
 .toast {
     position: fixed;
     right: 24px;
@@ -524,6 +536,24 @@ h1 em {
 
     .summary-divider {
         height: 25px;
+    }
+
+    .footnote {
+        flex-wrap: wrap;
+        gap: 8px 16px;
+    }
+
+    .footnote>span:first-child,
+    #config-note {
+        white-space: nowrap;
+    }
+
+    .nerd-stats {
+        order: 3;
+        flex-basis: 100%;
+        padding: 0;
+        text-align: left;
+        line-height: 1.7;
     }
 
     .service-row {
