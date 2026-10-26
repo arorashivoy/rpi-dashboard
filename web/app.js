@@ -77,12 +77,14 @@ async function loadStats() {
         if (!response.ok) throw new Error();
         const s = await response.json();
         const parts = [];
-        if (s.load) parts.push(`LOAD ${s.load.map((value) => value.toFixed(2)).join(" ")}`);
+        if (s.cpu_percent != null) {
+            const freq = s.freq_mhz != null ? ` @ ${Math.round(s.freq_mhz)} MHz` : "";
+            parts.push(`CPU ${Math.round(s.cpu_percent)}%${freq}`);
+        }
         if (s.ram) parts.push(`RAM ${formatBytes(s.ram.used)}/${formatBytes(s.ram.total)}`);
         if (s.swap) parts.push(`SWAP ${formatBytes(s.swap.used)}/${formatBytes(s.swap.total)}`);
         if (s.disk) parts.push(`DISK ${formatBytes(s.disk.used)}/${formatBytes(s.disk.total)}`);
         if (s.temp_c != null) parts.push(`${s.temp_c.toFixed(1)}°C`);
-        if (s.freq_mhz != null) parts.push(`${Math.round(s.freq_mhz)} MHz`);
         if (s.uptime_s != null) parts.push(`UP ${formatUptime(s.uptime_s)}`);
         target.textContent = parts.join(" · ");
     } catch {

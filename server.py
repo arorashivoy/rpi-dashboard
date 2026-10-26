@@ -9,6 +9,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -316,11 +317,24 @@ def load_config(path=None):
     return config
 
 
+def _cpu_times():
+    fields = [int(value) for value in Path("/proc/stat").read_text().splitlines()[0].split()[1:]]
+    return fields[3] + fields[4], sum(fields[:8])  # idle + iowait, total without guest
+
+
+def cpu_percent(interval=0.25):
+    idle_before, total_before = _cpu_times()
+    time.sleep(interval)
+    idle_after, total_after = _cpu_times()
+    total = total_after - total_before
+    return round(100 * (1 - (idle_after - idle_before) / total), 1) if total else 0.0
+
+
 def system_stats():
     stats = {"cores": os.cpu_count()}
     try:
-        stats["load"] = [float(value) for value in Path("/proc/loadavg").read_text().split()[:3]]
-    except (OSError, ValueError):
+        stats["cpu_percent"] = cpu_percent()
+    except (OSError, ValueError, IndexError):
         pass
     try:
         meminfo = {}
