@@ -332,7 +332,7 @@ h1 em {
 }
 
 .endpoint,
-.share-link {
+.cloudflare-link {
     display: block;
     overflow: hidden;
     max-width: 100%;
@@ -344,7 +344,7 @@ h1 em {
 }
 
 .endpoint:hover,
-.share-link:hover {
+.cloudflare-link:hover {
     text-decoration: underline;
     text-underline-offset: 3px;
 }
@@ -358,7 +358,7 @@ h1 em {
     color: #93a48b;
 }
 
-.share-link {
+.cloudflare-link {
     color: #657c1c;
 }
 
@@ -590,7 +590,7 @@ h1 em {
     }
 
     .endpoint,
-    .share-link {
+    .cloudflare-link {
         font-size: 9px;
     }
 

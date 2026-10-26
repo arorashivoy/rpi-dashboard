@@ -9,8 +9,6 @@ const refreshButton = document.querySelector("#refresh");
 const icons = {
     launch: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
     stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>',
-    share: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.7 10.6 6.6-4.2m-6.6 7 6.6 4.2"/></svg>',
-    unshare: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 16 16M10 10a3 3 0 0 0 4 4m-5.3-5.3A3 3 0 0 0 9 14m7-4a3 3 0 0 1-1 4m-6.2-5.2 6.6-4.2M8.7 13.4l6.6 4.2"/></svg>',
 };
 
 function escapeHtml(value) {
@@ -22,22 +20,13 @@ function escapeHtml(value) {
 function serviceCard(app, index) {
     const state = app.running ? "running" : "stopped";
     const mode = app.kind === "systemd" ? "SYSTEMD" : app.kind === "docker" ? "DOCKER" : "PROCESS";
-    const shareEnabled = app.share_managed && app.share_mode && app.local_url;
     const localLink = app.local_url
         ? `<a class="endpoint" href="${escapeHtml(app.local_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.local_url)}</a>`
         : '<span class="endpoint endpoint-muted">No local URL configured</span>';
     const cloudflareLink = app.cloudflare_url
-        ? `<a class="share-link" href="${escapeHtml(app.cloudflare_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.cloudflare_url)} · ${escapeHtml(app.cloudflare_visibility || "private").toUpperCase()}</a>`
-        : "";
-    const sharedLink = app.share_url
-        ? `<a class="share-link" href="${escapeHtml(app.share_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.share_url)}</a>`
+        ? `<a class="cloudflare-link" href="${escapeHtml(app.cloudflare_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.cloudflare_url)} · ${escapeHtml(app.cloudflare_visibility || "private").toUpperCase()}</a>`
         : "";
     const message = app.error ? `<p class="service-error">${escapeHtml(app.error)}</p>` : "";
-    const shareButton = shareEnabled
-        ? app.sharing
-            ? `<button class="action-button subtle" data-action="unshare" data-id="${escapeHtml(app.id)}" title="Stop zrok share">${icons.unshare}<span>UNSHARE</span></button>`
-            : `<button class="action-button subtle" data-action="share" data-id="${escapeHtml(app.id)}" title="Create a ${escapeHtml(app.share_mode)} zrok share">${icons.share}<span>SHARE</span></button>`
-        : "";
     const launchButton = app.disabled
         ? `<button class="action-button launch" type="button" disabled title="Configure a start command first">${icons.launch}<span>CONFIGURE</span></button>`
         : `<button class="action-button launch" data-action="start" data-id="${escapeHtml(app.id)}" title="Launch service">${icons.launch}<span>LAUNCH</span></button>`;
@@ -45,7 +34,6 @@ function serviceCard(app, index) {
       ${app.running
             ? `<button class="action-button stop" data-action="stop" data-id="${escapeHtml(app.id)}" title="Stop service">${icons.stop}<span>STOP</span></button>`
             : launchButton}
-      ${shareButton}
     </div>`;
 
     return `<article class="service-row ${state}" style="--row-index:${index}">
@@ -56,7 +44,7 @@ function serviceCard(app, index) {
     </div>
     <div class="service-meta">
       <div class="port-block"><span>PORT</span><strong>${app.port ? escapeHtml(app.port) : "—"}</strong></div>
-      <div class="link-block"><span>LOCAL ADDRESS</span>${localLink}${cloudflareLink}${sharedLink}</div>
+      <div class="link-block"><span>LOCAL ADDRESS</span>${localLink}${cloudflareLink}</div>
     </div>
     ${message}
     ${serviceActions}
@@ -68,7 +56,7 @@ function render() {
         ? apps.map(serviceCard).join("")
         : '<div class="empty-state">No services configured. Add entries to apps.json.</div>';
     document.querySelector("#running-count").textContent = apps.filter((app) => app.running).length;
-    document.querySelector("#share-count").textContent = apps.filter((app) => app.sharing).length;
+    document.querySelector("#published-count").textContent = apps.filter((app) => app.cloudflare_url).length;
     document.querySelector("#updated-at").textContent = `UPDATED ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
 }
 
@@ -119,7 +107,7 @@ serviceList.addEventListener("click", async (event) => {
         const response = await fetch(`/api/apps/${encodeURIComponent(id)}/${action}`, { method: "POST" });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error || "Action failed");
-        const messages = { start: "Service started.", stop: "Service stopped.", share: "Share started. Waiting for the public link…", unshare: "Share stopped." };
+        const messages = { start: "Service started.", stop: "Service stopped." };
         showToast(messages[action]);
         apps = apps.map((app) => app.id === id ? body.app : app);
         lastRenderedApps = JSON.stringify(apps);

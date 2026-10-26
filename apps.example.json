@@ -6,7 +6,7 @@
         {
             "id": "rpi-dashboard",
             "name": "Raspberry Pi Dashboard",
-            "description": "Service control and Cloudflare route management",
+            "description": "Service status and application addresses",
             "kind": "systemd",
             "scope": "user",
             "unit": "rpi-dashboard.service",
@@ -28,19 +28,11 @@
             "stop": {
                 "signal": "SIGINT"
             },
-            "port": 3000,
+            "port": 5001,
             "autostart": true,
             "cloudflare": {
                 "subdomain": "two-rooms",
                 "visibility": "private"
-            },
-            "share": {
-                "mode": "random",
-                "basic_auth": {
-                    "username": "replace-me",
-                    "password": "replace-me"
-                },
-                "autostart": true
             }
         },
         {
@@ -53,19 +45,11 @@
             "stop": {
                 "signal": "SIGINT"
             },
-            "port": 3001,
+            "port": 4173,
             "autostart": true,
             "cloudflare": {
                 "subdomain": "block-logic",
                 "visibility": "private"
-            },
-            "share": {
-                "mode": "random",
-                "basic_auth": {
-                    "username": "replace-me",
-                    "password": "replace-me"
-                },
-                "autostart": true
             }
         },
         {
@@ -74,13 +58,9 @@
             "description": "DNS and network filtering",
             "kind": "docker",
             "container": "pihole",
-            "port": 80,
-            "url": "http://127.0.0.1/admin/",
-            "autostart": true,
-            "cloudflare": {
-                "subdomain": "pihole",
-                "visibility": "private"
-            }
+            "port": 8081,
+            "url": "http://127.0.0.1:8081/admin/",
+            "autostart": true
         },
         {
             "id": "waypoint",
@@ -92,20 +72,11 @@
             "stop": {
                 "signal": "SIGINT"
             },
-            "port": 3002,
+            "port": 3118,
             "autostart": true,
             "cloudflare": {
                 "subdomain": "waypoint",
                 "visibility": "private"
-            },
-            "share": {
-                "mode": "named",
-                "name": "waypoint",
-                "basic_auth": {
-                    "username": "replace-me",
-                    "password": "replace-me"
-                },
-                "autostart": true
             }
         }
     ]

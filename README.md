@@ -1,192 +1,23 @@
 # Pi Control Room
 
-A small service dashboard for a Raspberry Pi. It uses Python's standard library and static browser files. It has no Python package dependencies.
-
-The dashboard can start or stop configured command-line apps, systemd units, and existing Docker containers. It can also create optional public zrok shares. A share is a separate action from starting an app. Cloudflare hostname and visibility settings can be recorded per app in `apps.json`; they describe the intended hostname and whether Cloudflare Access should protect it. They do not provision DNS, a Tunnel, or Access policies by themselves.
-
-## Requirements
-
-- Raspberry Pi OS with Python 3.9 or newer.
-- Docker installed for Docker-managed applications.
-- zrok2 installed and enabled with your account token for public shares.
+A small Raspberry Pi service dashboard built with Python's standard library and static browser files. It can start and stop configured command applications, systemd units, and existing Docker containers. It has no Python package dependencies and does not poll in the background.
 
 ## Configure applications
 
-1. Copy the example file to `apps.json`.
-
-   ```sh
-   cp apps.example.json apps.json
-  chmod 600 apps.json
-   ```
-
-2. Edit each entry to match the application installed on the Pi.
-3. Set `start` to an argument array for command applications. Do not enter a shell command string.
-4. Set `working_dir`, `port`, and optional `url` for each web application.
-5. Set `kind` to `systemd` with a `unit`, or `docker` with an existing `container`, when needed.
-6. Set `autostart` to `true` only when the application should start with this dashboard.
-
-The example app paths and ports are placeholders. Empty `start` arrays disable command entries until you configure them. A command app stops with `SIGINT` by default, like Ctrl+C. Set `stop.signal` to another signal, or set `stop.command` to an argument array for a custom stop command. The dashboard sends stop signals to the app's process group.
-
-Example command configuration:
-
-```json
-{
-  "id": "waypoint",
-  "name": "Waypoint",
-  "kind": "command",
-  "working_dir": "/home/pi/apps/waypoint",
-  "start": ["npm", "run", "start", "--", "--host", "0.0.0.0"],
-  "stop": { "signal": "SIGINT" },
-  "port": 3002,
-  "url": "http://127.0.0.1:${port}",
-  "autostart": false,
-  "share": { "mode": "random" }
-}
-```
-
-For a systemd app, use `"kind": "systemd"` and `"unit": "my-app.service"`. For an existing Docker container, use `"kind": "docker"` and `"container": "my-container"`. The dashboard does not build images or create containers.
-
-## Run the dashboard
+Copy the example configuration and edit it for the Pi:
 
 ```sh
-python3 server.py
+cp apps.example.json apps.json
+chmod 600 apps.json
 ```
 
-Open `http://127.0.0.1:8787`. Set `RPI_DASHBOARD_PORT` to change the port. The dashboard binds to loopback by default and has no built-in login. Keep it on loopback or use an SSH tunnel for local administration. Do not expose it directly to a network.
+Set each app's `kind`, `start` command or systemd unit/container, working directory, port, and local URL. Commands are argument arrays rather than shell strings. Empty `start` arrays disable a command app until configured. Use `managed: false` for read-only entries such as the dashboard itself.
 
-For remote administration, keep the dashboard on loopback and use an SSH tunnel:
+The dashboard entry should use `kind: "systemd"`, `scope: "user"`, and `unit: "rpi-dashboard.service"`. This lets the dashboard report its own status without offering a button that could stop itself.
 
-```sh
-ssh -L 8787:127.0.0.1:8787 pi@raspberrypi.local
-```
+## Cloudflare hostnames
 
-Then open `http://127.0.0.1:8787` on your computer.
-
-To publish the dashboard, let zrok handle visitor authentication. Enable zrok2 with the token from your zrok account. Create a stable public name once, then start this share alongside the dashboard:
-
-```sh
-zrok2 enable <your-account-token>
-zrok2 create name rpi-dashboard
-zrok2 share public http://127.0.0.1:8787 --name-selection public:rpi-dashboard --basic-auth='your-user:use-a-unique-password' --headless
-```
-
-Get the enable token from your zrok account. If you already enabled this account on the Pi, skip `zrok2 enable`. The `rpi-dashboard` name already exists, so do not create it again. Confirm it with `zrok2 list names`. Replace the example credentials with a unique pair. zrok requests them before it forwards traffic to the dashboard. Keep both the dashboard and zrok share processes running. For a temporary link, omit `--name-selection public:rpi-dashboard`.
-
-## zrok shares
-
-Enable the zrok2 CLI once for the Pi's user account. Replace the placeholder with the enable token from your zrok account:
-
-```sh
-zrok2 enable <your-account-token>
-```
-
-Add a `share` object to an application to enable its Share button. A random share uses the public zrok frontend URL generated by zrok. The dashboard reads the URL from zrok's output and displays it. The application must already be running and listening on the configured port. Set `share.basic_auth` to make zrok request a username and password from visitors to that public link.
-
-`zrok2 enable` authenticates the Pi's zrok account. It does not set visitor credentials. `share.basic_auth` sets the username and password that visitors enter for an individual app link. zrok enforces those credentials before it forwards traffic to the app.
-
-```json
-"share": {
-  "mode": "random",
-  "target": "localhost:3002",
-  "basic_auth": { "username": "waypoint-viewer", "password": "use-a-unique-password" }
-}
-```
-
-The dashboard passes these values to zrok2's `--basic-auth` option. This protects the public application share. `apps.json` is excluded from Git because it can contain passwords. Use a unique password for every app share. The zrok2 CLI receives these credentials as process arguments, which local users with process-inspection access may see.
-
-The dashboard discovers active public shares with `zrok2 list shares --json`. It reads each share's `target` port and attaches the share URL to the configured app with the same `port`; no share URL or target needs to be entered in `apps.json`. It refreshes status when a dashboard tab opens and when you click Refresh. If zrok2 cannot be queried, the dashboard reports a status error. Apps still need a `share` object only if you want the dashboard's Share and Unshare controls to manage a share.
-
-When you stop a service from the dashboard, it stops that service's dashboard-managed zrok share first and confirms the share is no longer active before stopping the service. If a share is active but was started outside the dashboard, the Stop action leaves the service running and asks you to stop that share first.
-
-For a stable public URL with current zrok2 CLI versions, use `"mode": "named"` and set `share.name`. Create the name once with `zrok2 create name waypoint`. If the name already exists, check `zrok2 list names` and reuse it. The Waypoint example uses this mode and selects the public name `public:waypoint`.
-
-```sh
-zrok2 create name waypoint
-```
-
-Set `autostart` to `true` so the named share starts when the dashboard starts. Keep this for apps that need a persistent URL, such as Waypoint. Omit `share` for private services such as Pi-hole.
-
-```json
-"share": {
-  "mode": "named",
-  "name": "waypoint",
-  "basic_auth": { "username": "waypoint-viewer", "password": "use-a-unique-password" },
-  "autostart": true
-}
-```
-
-The dashboard invokes `zrok2 share public --headless localhost:PORT` for a random share. For a named share, it adds `--name-selection public:NAME`. It adds the configured `--basic-auth=username:password` option to public-share commands. For older reserved-share configurations, use `"mode": "reserved"` with a `token`. If your installed zrok2 version needs different arguments, set `share.command` to its exact argument array. Treat reservation tokens and passwords as credentials. Keep `apps.json` mode `600` and do not publish it.
-
-## Start at boot
-
-Install the project in the account's home directory. For example, use `/home/pi/rpi-dashboard`. Copy `apps.example.json` to `apps.json`, set each app's start details, and set `autostart` to `true` for each app to launch at dashboard startup. Set `share.autostart` to `true` for each zrok share to start with its app. The example enables these flags. Empty command entries remain disabled until you configure their `start` arrays.
-
-Install the included user service:
-
-```sh
-mkdir -p ~/.config/systemd/user
-cp systemd/rpi-dashboard.service ~/.config/systemd/user/
-```
-
-Enable lingering so the user service manager runs at boot without an interactive login. Then enable and start the dashboard:
-
-```sh
-sudo loginctl enable-linger "$USER"
-systemctl --user daemon-reload
-systemctl --user enable --now rpi-dashboard.service
-systemctl --user status rpi-dashboard.service
-```
-
-The dashboard starts configured apps and their auto-start zrok shares. It skips disabled apps and does not start a share if its app fails to start. The dashboard and zrok processes run as the same user. For Docker control, give that user access to Docker; Docker group membership grants broad control over the host.
-
-For existing user services that must start and stop together, configure one app entry with a `units` list. The dashboard starts and stops all listed units and reports the group as running only when all units are active:
-
-```json
-{
-  "id": "waypoint",
-  "name": "Waypoint",
-  "kind": "systemd",
-  "scope": "user",
-  "units": [
-    "waypoint-web.service",
-    "waypoint-worker.service",
-    "waypoint-tunnel.service"
-  ],
-  "port": 3002,
-  "autostart": true
-}
-```
-
-Use `scope: "user"` for `systemctl --user` units. Use `scope: "system"` or omit `scope` for system services. Use `unit` for one service or `units` for a group, but do not set both.
-
-## Configuration reference
-
-- `id`: unique letters, numbers, `_`, or `-`.
-- `kind`: `command` (default), `systemd`, or `docker`.
-- `scope`: `system` (default) or `user` for systemd-managed apps.
-- `unit` or `units`: one systemd unit name or a list of units managed together.
-- `autostart`: start this app when the dashboard service starts.
-- `start`: executable and arguments for a command app.
-- `stop.signal`: process signal for a command app; defaults to `SIGINT`.
-- `stop.command`: optional executable and arguments that replace signal-based stopping.
-- `port` and `url`: local endpoint shown in the dashboard.
-- `managed`: set to `false` for status-only entries such as the dashboard itself.
-- top-level `cloudflare.domain`: base domain used to display app hostnames.
-- `cloudflare.subdomain`: DNS label for this app, such as `dashboard`.
-- `cloudflare.visibility`: `private` (default) or `public`.
-- `share.mode`: `random` or `reserved`.
-- `share.mode`: `named` for a stable public name on current zrok CLI versions.
-- `share.name`: public name used by `named` mode. Create it once with `zrok2 create name NAME`.
-- `share.basic_auth`: optional visitor username and password for public links.
-- `share.target`: optional target override, such as `localhost:3002`.
-- `share.autostart`: starts the share with the dashboard.
-- `share.command`: optional complete zrok argument array for CLI compatibility.
-
-The browser fetches status when a tab opens and when you click Refresh. It does not poll in the background, so status can become stale until the next refresh. Service actions update that tab using the action response. The dashboard checks systemd, Docker, and zrok shares when a tab opens and when you click Refresh or reload `apps.json`. Valid configuration changes appear without restarting the dashboard. If the JSON is invalid, the dashboard keeps the last valid configuration and shows an error. Changes to `autostart` take effect the next time the dashboard service starts. Process apps started by the dashboard use their in-memory process status.
-
-## Cloudflare hostname settings
-
-Set the base domain once and add a `cloudflare` object to each app. Include the dashboard as a read-only systemd app so it appears in the service list without offering controls that could stop the dashboard itself:
+Set a base domain and a route on each app:
 
 ```json
 {
@@ -207,4 +38,64 @@ Set the base domain once and add a `cloudflare` object to each app. Include the 
 }
 ```
 
-`visibility` accepts `private` or `public` and defaults to `private`. Protect private hostnames with a Cloudflare Access policy, such as email one-time PIN with an allowlist. Public hostnames have no Access gate and should only be used for apps intended for anyone to reach. The dashboard shows the configured hostname and visibility; a live hostname still requires a configured Cloudflare Tunnel, DNS route, and matching Access policy.
+`cloudflare.subdomain` selects the hostname. `cloudflare.visibility` is `private` or `public` and defaults to `private`. A private hostname must also have a Cloudflare Access application and Allow policy. For email PIN access, use an exact email allowlist. Public hostnames have no Access gate.
+
+These fields describe the expected address and visibility in the dashboard. They do not create DNS records or Access policies. Configure each published application route in the Cloudflare Tunnel, and create its Access application before publishing a private hostname. The Tunnel should send only to the app's local address and port.
+
+The Raspberry Pi Tunnel runs as one systemd user service using the configuration and tunnel credentials under `~/.cloudflared/`. Protect the credentials file and keep it out of Git. Install the service template with:
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp systemd/rpi-dashboard-tunnel.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now rpi-dashboard-tunnel.service
+```
+
+The unit expects `~/.cloudflared/rpi-dashboard.yml` to contain the named tunnel UUID, credentials file path, hostname ingress routes, and a final `http_status:404` catch-all. After changing that file, restart the Tunnel:
+
+```sh
+systemctl --user restart rpi-dashboard-tunnel.service
+systemctl --user status rpi-dashboard-tunnel.service
+```
+
+## Run the dashboard
+
+```sh
+python3 server.py
+```
+
+Open `http://127.0.0.1:8787`. The dashboard binds to loopback by default and has no built-in login. Keep it behind Cloudflare Access or use an SSH tunnel; do not expose the local port directly.
+
+## Start at boot
+
+Install the included dashboard user service:
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp systemd/rpi-dashboard.service ~/.config/systemd/user/
+sudo loginctl enable-linger "$USER"
+systemctl --user daemon-reload
+systemctl --user enable --now rpi-dashboard.service
+```
+
+The dashboard starts configured apps whose `autostart` value is true. It skips disabled apps. For Docker control, the dashboard user needs Docker access; Docker group membership grants broad control over the host.
+
+For a group of existing user services, configure one app with `kind: "systemd"`, `scope: "user"`, and a `units` array. The group is reported as running only when every unit is active.
+
+## Configuration reference
+
+- `id`: unique letters, numbers, `_`, or `-`.
+- `kind`: `command` (default), `systemd`, or `docker`.
+- `scope`: `system` (default) or `user` for systemd-managed apps.
+- `unit` or `units`: one systemd unit name or a list of units.
+- `managed`: set to `false` for status-only entries.
+- `autostart`: start this app when the dashboard service starts.
+- `start`: executable and arguments for command apps.
+- `stop.signal`: process signal for command apps; defaults to `SIGINT`.
+- `stop.command`: optional executable and arguments that replace signal-based stopping.
+- `port` and `url`: local endpoint shown in the dashboard.
+- top-level `cloudflare.domain`: base domain used to display app hostnames.
+- `cloudflare.subdomain`: DNS label for this app, such as `dashboard`.
+- `cloudflare.visibility`: `private` (default) or `public`.
+
+The browser fetches status when a tab opens and when you click Refresh. It does not poll in the background. Service actions update the current tab using the action response. Valid configuration changes appear after clicking Refresh; if the JSON is invalid, the dashboard keeps the last valid configuration and shows an error.

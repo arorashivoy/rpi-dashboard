@@ -1,0 +1,13 @@
+[Unit]
+Description=Cloudflare Tunnel for Raspberry Pi dashboard and apps
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cloudflared --config %h/.cloudflared/rpi-dashboard.yml tunnel run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
