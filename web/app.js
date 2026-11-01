@@ -56,6 +56,11 @@ function render() {
     document.querySelector("#running-count").textContent = apps.filter((app) => app.running).length;
     document.querySelector("#published-count").textContent = apps.filter((app) => app.cloudflare_url).length;
     document.querySelector("#updated-at").textContent = `UPDATED ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    const piholeApp = apps.find((app) => app.id === "pihole");
+    const panel = document.querySelector("#pihole-panel");
+    panel.hidden = !(piholeApp && piholeApp.running);
+    document.querySelector("#pihole-slot").innerHTML = panel.hidden ? "" : piholeBlock();
+    updatePiholeState();
 }
 
 function formatBytes(bytes) {
@@ -153,5 +158,90 @@ serviceList.addEventListener("click", async (event) => {
     }
 });
 
+let pihole = null;
+let piholeTimer;
+
+function piholeBlock() {
+    const paused = pihole && pihole.blocking === false;
+    const action = paused ? "resume" : "open";
+    const text = paused ? "ENABLE BLOCKING" : "DISABLE BLOCKING";
+    return `<div class="pihole-pause"><span class="pihole-state" data-pihole-state></span>
+      <button class="action-button ${paused ? "launch" : "stop"}" type="button" data-pause="${action}">${text}</button></div>`;
+}
+
+const piholeModal = document.querySelector("#pihole-modal");
+
+function updatePiholeState() {
+    clearInterval(piholeTimer);
+    const label = document.querySelector("[data-pihole-state]");
+    if (!label) return;
+    if (!pihole || pihole.blocking === null) {
+        label.textContent = "BLOCKING STATUS UNKNOWN";
+    } else if (pihole.blocking) {
+        label.textContent = "BLOCKING ON";
+    } else if (pihole.remaining_s == null) {
+        label.textContent = "BLOCKING PAUSED";
+    } else {
+        const endsAt = Date.now() + pihole.remaining_s * 1000;
+        const tick = () => {
+            const left = Math.max(0, Math.round((endsAt - Date.now()) / 1000));
+            label.textContent = left
+                ? `PAUSED · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} LEFT`
+                : "RESUMING…";
+            if (!left) { clearInterval(piholeTimer); setTimeout(loadPihole, 2000); }
+        };
+        tick();
+        piholeTimer = setInterval(tick, 1000);
+    }
+}
+
+async function loadPihole() {
+    try {
+        const response = await fetch("/api/pihole", { cache: "no-store" });
+        pihole = await response.json();
+    } catch {
+        pihole = null;
+    }
+    lastRenderedApps = "";
+    render();
+}
+
+async function piholeCall(action) {
+    piholeModal.hidden = true;
+    try {
+        const response = await fetch(action === "resume" ? "/api/pihole/resume" : `/api/pihole/pause/${action}`, { method: "POST" });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "Pi-hole action failed");
+        pihole = body;
+        showToast(body.blocking ? "Pi-hole blocking enabled." : "Pi-hole blocking disabled. DNS still works.");
+    } catch (error) {
+        showToast(error.message);
+    }
+    lastRenderedApps = "";
+    render();
+}
+
+document.querySelector("#pihole-slot").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-pause]");
+    if (!button) return;
+    if (button.dataset.pause === "resume") piholeCall("resume");
+    else piholeModal.hidden = false;
+});
+
+piholeModal.addEventListener("click", (event) => {
+    if (event.target === piholeModal || event.target.closest("[data-close]")) {
+        piholeModal.hidden = true;
+        return;
+    }
+    const button = event.target.closest("button[data-length]");
+    if (button) piholeCall(button.dataset.length);
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") piholeModal.hidden = true;
+});
+
 refreshButton.addEventListener("click", () => refresh(true));
 refresh();
+loadPihole();
+setInterval(loadPihole, 30000);

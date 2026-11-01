@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f1f2eb">
     <title>Pi Control Room</title>
-    <link rel="stylesheet" href="/style.css?v=2">
-    <script src="/app.js?v=nerd-stats-3" defer></script>
+    <link rel="stylesheet" href="/style.css?v=7">
+    <script src="/app.js?v=pihole-6" defer></script>
 </head>
 
 <body>
@@ -48,11 +48,32 @@
             <div id="service-list" class="service-list" aria-live="polite"></div>
         </section>
 
+        <section class="pihole-panel" id="pihole-panel" aria-labelledby="pihole-title" hidden>
+            <div class="section-heading">
+                <h2 id="pihole-title">PI-HOLE BLOCKING</h2>
+            </div>
+            <div id="pihole-slot"></div>
+        </section>
+
         <footer class="footnote">
             <span>PI 4 / ARM64</span>
             <span class="nerd-stats" id="nerd-stats" aria-label="System statistics"></span>
             <span id="config-note">Configuration: apps.json</span>
         </footer>
+        <div class="modal-backdrop" id="pihole-modal" role="dialog" aria-modal="true" aria-labelledby="pihole-modal-title" hidden>
+            <div class="modal">
+                <h3 id="pihole-modal-title">DISABLE BLOCKING</h3>
+                <p>DNS keeps working. Only ad blocking turns off.</p>
+                <div class="modal-options">
+                    <button class="action-button" type="button" data-length="5">5 MIN</button>
+                    <button class="action-button" type="button" data-length="15">15 MIN</button>
+                    <button class="action-button" type="button" data-length="30">30 MIN</button>
+                    <button class="action-button" type="button" data-length="60">1 HOUR</button>
+                    <button class="action-button stop" type="button" data-length="forever">UNTIL I ENABLE IT</button>
+                </div>
+                <button class="modal-close" type="button" data-close>CANCEL</button>
+            </div>
+        </div>
         <div class="toast" id="toast" role="status" aria-live="polite"></div>
     </main>
 </body>

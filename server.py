@@ -365,6 +365,46 @@ def system_stats():
     return stats
 
 
+PIHOLE_PAUSE_OPTIONS = {5, 15, 30, 60}
+_pihole_resume_at = None
+
+
+def pihole_status():
+    global _pihole_resume_at
+    result = Dashboard._docker_command(["docker", "exec", "pihole", "pihole", "status"])
+    output = result.stdout + result.stderr
+    if "blocking is enabled" in output:
+        _pihole_resume_at = None
+        return {"blocking": True}
+    if "blocking is disabled" in output:
+        remaining = None
+        if _pihole_resume_at is not None:
+            remaining = max(0, int(_pihole_resume_at - time.time()))
+        return {"blocking": False, "remaining_s": remaining}
+    return {"blocking": None, "error": output.strip() or "Could not read Pi-hole status"}
+
+
+def pihole_set(minutes, forever=False):
+    """Pause blocking for the given minutes (or until resumed), or resume it when both are unset.
+
+    Pausing only turns off blocking: Pi-hole keeps answering DNS and forwards every query.
+    """
+    global _pihole_resume_at
+    base = ["docker", "exec", "pihole", "pihole"]
+    if minutes:
+        command = base + ["disable", f"{minutes}m"]
+    elif forever:
+        command = base + ["disable"]
+    else:
+        command = base + ["enable"]
+    result = Dashboard._docker_command(command)
+    if result.returncode:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(detail or f"Command failed with status {result.returncode}")
+    _pihole_resume_at = time.time() + minutes * 60 if minutes else None
+    return pihole_status()
+
+
 class Handler(SimpleHTTPRequestHandler):
     dashboard = None
 
@@ -377,6 +417,8 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(200, {"apps": self.dashboard.list_apps()})
         elif self.path == "/api/stats":
             self._json(200, system_stats())
+        elif self.path == "/api/pihole":
+            self._json(200, pihole_status())
         elif self.path == "/api/health":
             self._json(200, {"ok": True})
         else:
@@ -390,6 +432,19 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(400, {"error": str(exc)})
                 return
             self._json(200, {"apps": self.dashboard.list_apps(), "reloaded": reloaded})
+            return
+
+        pause = re.fullmatch(r"/api/pihole/(pause/(\d+|forever)|resume)", urlparse(self.path).path)
+        if pause:
+            length = pause.group(2)
+            minutes = int(length) if length and length != "forever" else None
+            if minutes is not None and minutes not in PIHOLE_PAUSE_OPTIONS:
+                self._json(400, {"error": "Unsupported pause length"})
+                return
+            try:
+                self._json(200, pihole_set(minutes, forever=length == "forever"))
+            except RuntimeError as exc:
+                self._json(500, {"error": str(exc)})
             return
 
         match = re.fullmatch(r"/api/apps/([^/]+)/(start|stop)", urlparse(self.path).path)
