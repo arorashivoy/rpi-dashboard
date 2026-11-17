@@ -1,3 +1,4 @@
 apps.json
 __pycache__/
-*.py[cod]
+*.py[cod].venv/
+apps.json.bak-*

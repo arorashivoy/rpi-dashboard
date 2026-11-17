@@ -20,9 +20,13 @@ function escapeHtml(value) {
 function serviceCard(app, index) {
     const state = app.running ? "running" : "stopped";
     const mode = app.kind === "systemd" ? "SYSTEMD" : app.kind === "docker" ? "DOCKER" : "PROCESS";
+    const urlTag = app.lan_url ? " · TAILSCALE" : "";
     const localLink = app.local_url
-        ? `<a class="endpoint" href="${escapeHtml(app.local_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.local_url)}</a>`
+        ? `<a class="endpoint" href="${escapeHtml(app.local_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.local_url)}${urlTag}</a>`
         : '<span class="endpoint endpoint-muted">No local URL configured</span>';
+    const lanLink = app.lan_url
+        ? `<a class="endpoint" href="${escapeHtml(app.lan_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.lan_url)} · HOME NETWORK</a>`
+        : "";
     const cloudflareLink = app.cloudflare_url
         ? `<a class="cloudflare-link" href="${escapeHtml(app.cloudflare_url)}" target="_blank" rel="noreferrer"><span class="endpoint-symbol">↗</span>${escapeHtml(app.cloudflare_url)} · ${escapeHtml(app.cloudflare_visibility || "private").toUpperCase()}</a>`
         : "";
@@ -42,7 +46,7 @@ function serviceCard(app, index) {
     </div>
     <div class="service-meta">
       <div class="port-block"><span>PORT</span><strong>${app.port ? escapeHtml(app.port) : "—"}</strong></div>
-      <div class="link-block"><span>ADDRESS</span>${localLink}${cloudflareLink}</div>
+      <div class="link-block"><span>ADDRESS</span>${localLink}${lanLink}${cloudflareLink}</div>
     </div>
     ${message}
     ${serviceActions}

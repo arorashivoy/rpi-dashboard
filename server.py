@@ -61,6 +61,7 @@ class Dashboard:
             "kind": kind,
             "port": port,
             "local_url": local_url,
+            "lan_url": app.get("lan_url"),
             "cloudflare_url": self._cloudflare_url(app),
             "cloudflare_visibility": (app.get("cloudflare") or {}).get("visibility", "private"),
             "managed": app.get("managed", True),
