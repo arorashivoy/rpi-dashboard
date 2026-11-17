@@ -249,3 +249,41 @@ refreshButton.addEventListener("click", () => refresh(true));
 refresh();
 loadPihole();
 setInterval(loadPihole, 30000);
+
+// Pull down at the top of the page to refresh (touch screens).
+(function pullToRefresh() {
+    const THRESHOLD = 70;
+    const indicator = document.createElement("div");
+    indicator.className = "ptr";
+    indicator.textContent = "PULL TO REFRESH";
+    document.body.appendChild(indicator);
+    let startY = null;
+    let pull = 0;
+
+    function setPull(px) {
+        pull = px;
+        indicator.style.transform = `translateY(${Math.min(px, THRESHOLD * 1.5) - 40}px)`;
+        indicator.style.opacity = String(Math.min(px / THRESHOLD, 1));
+        indicator.textContent = px >= THRESHOLD ? "RELEASE TO REFRESH" : "PULL TO REFRESH";
+    }
+
+    window.addEventListener("touchstart", (event) => {
+        const modalOpen = !piholeModal.hidden;
+        startY = window.scrollY <= 0 && !modalOpen ? event.touches[0].clientY : null;
+    }, { passive: true });
+
+    window.addEventListener("touchmove", (event) => {
+        if (startY === null) return;
+        const delta = event.touches[0].clientY - startY;
+        if (delta > 0 && window.scrollY <= 0) setPull(delta * 0.5);
+        else if (pull) setPull(0);
+    }, { passive: true });
+
+    window.addEventListener("touchend", () => {
+        if (startY === null) return;
+        const shouldRefresh = pull >= THRESHOLD;
+        startY = null;
+        setPull(0);
+        if (shouldRefresh) refresh(true);
+    }, { passive: true });
+})();

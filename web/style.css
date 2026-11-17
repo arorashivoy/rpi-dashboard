@@ -667,3 +667,26 @@ h1 em {
 .modal-options .action-button:not(.stop):hover { border-color: var(--green); color: var(--green); }
 .modal-options .stop { grid-column: 1 / -1; }
 .modal-close { margin-top: 14px; padding: 6px 0; background: none; border: 0; color: var(--muted); font: 10px var(--mono); letter-spacing: .1em; cursor: pointer; }
+
+/* Pull to refresh */
+html { overscroll-behavior-y: contain; }
+.ptr {
+    position: fixed;
+    top: env(safe-area-inset-top, 0px);
+    left: 50%;
+    margin-left: -80px;
+    width: 160px;
+    padding: 6px 0;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    opacity: 0;
+    transform: translateY(-40px);
+    pointer-events: none;
+    z-index: 50;
+    background: var(--ink);
+    color: var(--lime);
+    font-family: var(--mono);
+    border: 1px solid var(--lime);
+    border-radius: 999px;
+}
